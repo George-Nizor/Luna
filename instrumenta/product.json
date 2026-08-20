@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 2,
+  "id": "luna",
+  "name": "Luna",
+  "version": "0.3.0",
+  "description": "Private, local GPU voice generation.",
+  "repository": {
+    "provider": "github",
+    "owner": "George-Nizor",
+    "name": "Luna",
+    "channel": "stable"
+  },
+  "developer": {
+    "source": "../Luna"
+  },
+  "platforms": ["windows-x64"],
+  "adapter": {
+    "type": "installed-desktop",
+    "releaseManifestAsset": "instrumenta-release.json",
+    "versionProbe": {
+      "type": "windows-uninstall",
+      "displayName": "Luna"
+    },
+    "launch": {
+      "type": "installed-executable",
+      "candidates": [
+        "%LOCALAPPDATA%\\Programs\\Luna\\Luna.exe"
+      ]
+    },
+    "uninstall": {
+      "type": "windows-uninstall",
+      "displayName": "Luna"
+    }
+  }
+}

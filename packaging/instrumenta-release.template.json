@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "product": "luna",
+  "version": "0.3.0",
+  "platform": "windows-x64",
+  "minimumInstrumentaVersion": "0.8.0",
+  "installStrategy": "installed-desktop",
+  "installer": {
+    "asset": "Luna-Installer-0.3.0.exe",
+    "size": 0,
+    "sha256": ""
+  },
+  "payload": {
+    "assembledAsset": "luna-0.3.0-x64.nsis.7z",
+    "size": 0,
+    "sha256": "",
+    "chunks": []
+  }
+}
