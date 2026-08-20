@@ -7,8 +7,9 @@ from app.errors import ApiError
 from app.security import require_local_request, safe_child_path, sanitize_filename, validate_host_header
 
 
-def test_safe_paths_and_filename():
-    root = Path("C:/tmp/profiles")
+def test_safe_paths_and_filename(tmp_path: Path):
+    root = tmp_path / "profiles"
+    root.mkdir()
     assert safe_child_path(root, "voice") == root / "voice"
     with pytest.raises(ValueError):
         safe_child_path(root, "../outside")

@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
+
+import pytest
 from pathlib import Path
 
 
@@ -12,6 +15,8 @@ def _sha256(data: bytes) -> str:
 
 
 def test_release_splitter_produces_reassemblable_verified_chunks(tmp_path: Path) -> None:
+    if os.name != "nt":
+        pytest.skip("The release splitter targets Windows PowerShell paths.")
     powershell = shutil.which("powershell.exe") or shutil.which("powershell")
     if not powershell:
         return

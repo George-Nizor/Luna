@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 
 from app import __version__
@@ -27,3 +28,7 @@ def test_luna_identity_is_consistent() -> None:
 def test_unlicensed_reference_audio_is_ignored() -> None:
     ignored = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "assets/egirl-source-reference.wav" in ignored
+def test_python_package_discovery_is_explicit() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert project["tool"]["setuptools"]["packages"]["find"]["include"] == ["app", "app.*"]
+    assert project["tool"]["setuptools"]["package-data"]["app"] == ["static/*", "templates/*"]
