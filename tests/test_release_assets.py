@@ -5,9 +5,9 @@ import json
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 
 def _sha256(data: bytes) -> str:
