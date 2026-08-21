@@ -19,6 +19,7 @@ button, a { color: inherit; }
 button { cursor: pointer; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 1px solid var(--white); outline-offset: 3px; }
 .terminal { display: flex; min-height: 100svh; flex-direction: column; align-items: center; padding: 0 clamp(12px, 4vw, 64px) 24px; }
+.luna-brand-mark { position: fixed; top: 20px; left: 24px; z-index: 5; width: clamp(42px, 4vw, 56px); height: clamp(42px, 4vw, 56px); object-fit: contain; }
 .core-zone { display: grid; width: 100%; min-height: clamp(360px, 61vh, 620px); place-items: center; }
 #voice-core-canvas { display: block; width: clamp(280px, 38vw, 540px); height: clamp(280px, 38vw, 540px); image-rendering: pixelated; image-rendering: crisp-edges; }
 .input-zone { display: grid; grid-template-columns: minmax(0, 1fr) 128px; width: min(82vw, 1240px); height: 78px; border: 1px solid var(--white); background: var(--black); }

@@ -23,6 +23,9 @@ def test_luna_identity_is_consistent() -> None:
     assert product["adapter"]["type"] == "installed-desktop"
     assert "com.instrumenta.luna" in electron
     assert "Luna Voice Studio" not in electron
+    template = (ROOT / "app" / "templates" / "index.html").read_text(encoding="utf-8")
+    assert "luna-brand-mark" in template
+    assert "/static/luna-icon.png" in template
 
 
 def test_unlicensed_reference_audio_is_ignored() -> None:
