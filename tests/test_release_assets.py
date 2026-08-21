@@ -14,6 +14,19 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def test_installed_payload_repack_is_explicitly_local_only() -> None:
+    root = Path(__file__).resolve().parents[1]
+    build_script = (root / "scripts" / "build_installer.ps1").read_text(encoding="utf-8")
+    builder_config = (root / "electron-builder.config.cjs").read_text(encoding="utf-8")
+    release_docs = (root / "docs" / "releasing.md").read_text(encoding="utf-8")
+
+    assert "InstalledPayloadRoot" in build_script
+    assert "SkipReleaseSplit" in build_script
+    assert "LUNA_INSTALLED_PAYLOAD_ROOT" in builder_config
+    normalized_docs = " ".join(release_docs.replace("**", "").split())
+    assert "must not be used for a public release" in normalized_docs
+
+
 def test_release_splitter_produces_reassemblable_verified_chunks(tmp_path: Path) -> None:
     if os.name != "nt":
         pytest.skip("The release splitter targets Windows PowerShell paths.")

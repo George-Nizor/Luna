@@ -25,6 +25,22 @@ The build creates the lightweight NSIS installer, its large sidecar payload, and
 `scripts/split_release_assets.ps1`. The splitter writes uploadable assets to
 `release\publish\v0.3.0` without modifying source inputs.
 
+### Local-only rebuild from an installed payload
+
+An owner may rebuild Luna locally from a previously installed, complete Luna payload while replacing
+the application and backend code with the current source checkout:
+
+```powershell
+.\scripts\build_installer.ps1 `
+  -InstalledPayloadRoot "$env:LOCALAPPDATA\Programs\Luna Voice Studio\resources" `
+  -SkipReleaseSplit
+```
+
+This recovery path copies the installed portable Python runtime, models, and voice assets into a new
+local installer. It bypasses public release splitting intentionally and **must not be used for a
+public release**. Do not upload, redistribute, or retain its sidecar beyond the local installation
+unless every included third-party model and recording has been cleared for redistribution.
+
 ## Multipart contract
 
 GitHub release assets must remain below 2 GiB. Luna uses 1.9 GiB maximum numbered parts:
