@@ -1,69 +1,111 @@
+![Luna banner](docs/images/luna-banner.png)
+
 # Luna
 
-Luna is a self-contained Windows Electron application for local GPU voice generation. It includes its private Python runtime, CUDA-enabled ML packages, Qwen models, the David Attenborough XTTS model, the E-Girl RVC model, and the RVC base assets. It does not depend on ChatGPT, Codex, a terminal, a separately installed Python, or an external web browser.
+Luna is a Windows desktop app for generating speech with local GPU models. It carries its own Python
+runtime and opens a private backend inside a hardened Electron window. Text, reference audio, voice
+profiles, and generated WAV files stay on the computer.
 
-The application runs its backend only on `127.0.0.1` and displays it inside a hardened Electron window. Text, reference audio, voice profiles, and generated WAV files remain on the computer. No model is loaded onto the GPU during application startup.
+Current version: **0.3.0**.
 
-## Install
+## Open it
 
-The offline distribution is in `release\nsis-web` and has two required files:
+Use the Luna card in Instrumenta, the Start menu entry, or `Luna.exe`. Instrumenta treats Luna as an
+installed desktop application: it checks the Windows installation record and launches the registered
+executable.
 
-- `Luna-Installer-0.3.0.exe`
-- `luna-0.3.0-x64.nsis.7z` (reassembled from the published `.partNNN` assets)
-- `instrumenta-release.json`, containing sizes and SHA-256 digests for the installer and every chunk
+Choose a voice, enter the text, select Fast or Best when the voice supports both, then generate. The
+history drawer keeps previous sounds available for replay.
 
-`npm run dist` prepares uploadable assets under `release\\publish\\v0.3.0`. Instrumenta downloads each chunk with resume support, verifies it, reassembles the original NSIS sidecar, verifies the complete sidecar, and only then launches the installer.
+Models load after the first generation request. Use **Unload model** when GPU memory is needed
+elsewhere.
 
-Keep those files in the same directory, run the installer EXE, and choose an installation directory. The sidecar archive is checksum-bound to that installer and supplies the large offline runtime. After Luna has installed and launched successfully, both distribution files can be deleted or moved to backup storage. The installed product is launched through `Luna.exe`, its Start menu entry, or its desktop shortcut.
+## Voices
 
-This is an installer bundle rather than a single self-extracting EXE because the complete installed payload is about 15 GB and exceeds the practical archive limit of a monolithic NSIS executable. Allow additional free space while installing. Another Windows x64 machine still needs a compatible NVIDIA GPU and current NVIDIA driver; the application runtime and models themselves are included.
+- **David Attenborough** uses the configured XTTS v2 fine-tune and its fixed reference recording. The
+  source provides one checkpoint, so the quality control stays on its real single path.
+- **E-Girl** generates a clean source with Qwen, then applies the E-Girl RVC V2 conversion. Fast uses
+  Qwen 0.6B; Best uses Qwen 1.7B.
+- **Saved profiles** use a user-created reference voice. Fast and Best select the same Qwen engines.
 
-## Use
+Qwen models are generation engines, so they do not appear as pretend voices in the voice list.
 
-The default output directory is `%USERPROFILE%\Documents\Luna`. Open Settings inside the app to view, open, or change it. Changing the directory restarts only the lightweight local backend; no model is loaded until the next generation request.
+Use voices and recordings you have permission to use.
 
-The voice selector contains only voices:
+## Output and local data
 
-- **David Attenborough**: one fixed XTTS v2 fine-tune using its included `ref.wav`; no voice profile is required. The source repository supplies one checkpoint, so Quality is locked to its single configured Best path rather than presenting a fake Fast variant.
-- **E-Girl**: converts a clean fixed female source with the E-Girl RVC V2 checkpoint; no voice profile is required. Quality Fast uses `Qwen/Qwen3-TTS-12Hz-0.6B-Base` as the source engine and Best uses `Qwen/Qwen3-TTS-12Hz-1.7B-Base`.
-- **Saved profile names**: each user-created voice profile appears as its own voice. Fast and Best select the same 0.6B and 1.7B Qwen source engines respectively.
+The default output folder is:
 
-E-Girl uses RMVPE, female pitch `0`, index rate `0.6`, filter radius `3`, resampling disabled, RMS mix `0.25`, and protect `0.5`. Qwen Fast and Qwen Best are engines behind Quality, not voices, so they are not listed in the voice selector.
+```text
+%USERPROFILE%\Documents\Luna
+```
 
-The expandable history panel shows previous sounds, selected model, and duration. A history row can load and play its WAV in the main player. While a sound is generating, the player is disabled and its play control becomes a three-dot pending animation.
+Settings can open or change it. A folder change restarts the lightweight backend and leaves the model
+unloaded until the next job.
 
-Use only voices and recordings you have permission to use.
+Other state lives here:
 
-## Resource lifecycle
+```text
+Settings and runtime data  %APPDATA%\Luna
+Backend log                %APPDATA%\Luna\logs\desktop-backend.log
+Generated audio            the output folder selected in Luna
+```
 
-Electron starts one hidden private backend when Luna opens. Qwen, XTTS, and RVC workers are separate processes and are created only after generation is requested. The active worker exits when Unload Model is used, after `WORKER_IDLE_SECONDS`, or during application shutdown. Closing the Luna window requests a clean backend shutdown and uses a bounded process-termination fallback if a child does not exit.
+Uninstalling the application leaves generated audio and user settings in place. Delete them manually
+only when they are no longer wanted.
 
-Installed user state is kept outside the application directory:
+## The offline payload
 
-- Settings and runtime data: `%APPDATA%\Luna`
-- Backend log: `%APPDATA%\Luna\logs\desktop-backend.log`
-- Generated WAV files: the output directory selected in Luna
+A complete local installation is roughly 15 GB because it contains CUDA-enabled packages, voice
+models, and RVC assets. They have shown no interest in becoming a polite little installer.
 
-This keeps application upgrades separate from user audio. Uninstalling Luna does not silently delete generated output or application data.
+The distribution uses these files:
+
+```text
+Luna-Installer-0.3.0.exe
+luna-0.3.0-x64.nsis.7z
+instrumenta-release.json
+```
+
+GitHub upload builds split the sidecar into numbered parts below the per-asset size limit. Instrumenta
+resumes individual downloads, checks free space, verifies every part, rebuilds the sidecar, verifies
+the complete file, and then starts the installer.
+
+The installer and sidecar must be from the same build and sit in the same folder for a manual
+installation. Once Luna is installed and opens correctly, those distribution files can be removed.
+
+## Process lifecycle
+
+Electron starts one loopback backend on `127.0.0.1`. Qwen, XTTS, and RVC run as separate workers.
+Only the active model worker occupies GPU memory.
+
+The worker exits after the configured idle timeout, when **Unload model** is pressed, or when Luna
+closes. Shutdown first asks each process to exit cleanly and uses a bounded termination fallback for
+a stuck child.
+
+No browser, account, OpenAI API key, or separately installed Python is needed by the packaged app.
 
 ## Development
 
-Development is intentionally separate from normal use. From the source directory:
+Source development is separate from the offline installation:
 
 ```powershell
 .\scripts\setup_dev.ps1
 npm start
 ```
 
-Useful commands:
+Checks and packages:
 
 ```powershell
-npm test       # pytest, Ruff, and JavaScript syntax checks
-npm run pack   # unpacked desktop build for local testing
-npm run dist   # complete offline installer bundle
+npm test
+npm run pack
+npm run dist
 ```
 
-The development model registry can download only the fixed sources committed in `scripts\download_models.ps1`:
+`npm run pack` creates an unpacked desktop build. `npm run dist` assembles the complete offline
+installer and writes publishable chunks under `release\publish\v0.3.0`.
+
+Model downloads are fixed by `scripts\download_models.ps1`:
 
 ```powershell
 .\scripts\download_models.ps1 -Model david
@@ -73,28 +115,36 @@ The development model registry can download only the fixed sources committed in 
 .\scripts\download_models.ps1 -All
 ```
 
-Downloads are resumable where the source supports HTTP range requests. The David archive is SHA-256 verified before extraction. No arbitrary model URL is accepted by the application or download script.
+The repository excludes virtual environments, `node_modules`, model payloads, runtime builds, logs,
+generated audio, and releases.
 
-The build script creates temporary hard-linked, flattened Qwen snapshots so Electron Builder does not mispackage Hugging Face cache links. Those temporary links are removed at the end of each build. Source model caches, virtual environments, `node_modules`, generated audio, logs, and release artifacts are ignored by Git. Publish installers and verified payload chunks through GitHub Releases, never normal Git history.
+## Publication status
 
-## Documentation
+The source repository is public. The third-party offline payload still has a separate redistribution
+gate covering recordings, model weights, RVC assets, FFmpeg, and the packaged dependency inventory.
+A working local installation does not grant permission to publish those files.
 
-- [`docs/identity-and-data.md`](docs/identity-and-data.md) defines the Luna identity, clean reinstall,
-  registry/shortcut boundaries, and user-owned data locations.
-- [`docs/releasing.md`](docs/releasing.md) covers source-only publication, asset licensing, multipart
-  assembly, checksums, GitHub Release creation, and clean-machine verification.
+The current evidence and remaining work are recorded in
+[the publication audit](docs/publication-audit.md).
 
 ## Troubleshooting
 
-- If Luna reports an incomplete runtime, reinstall with the matching EXE and `.nsis.7z` sidecar beside each other.
-- If generation reports CUDA unavailable, update the NVIDIA driver and confirm the target computer has a compatible NVIDIA GPU.
-- If the app closes unexpectedly, inspect `%APPDATA%\Luna\logs\desktop-backend.log`.
-- If a model remains resident after generation, use Unload Model. Closing Luna also terminates the worker and backend.
-- If an output will not play, confirm the chosen output directory still exists and has not been moved outside Luna.
+- **Incomplete runtime:** reinstall with the matching EXE and sidecar in one folder.
+- **CUDA unavailable:** update the NVIDIA driver and confirm the machine has a compatible NVIDIA GPU.
+- **Generation failed:** inspect `%APPDATA%\Luna\logs\desktop-backend.log`.
+- **Model stayed loaded:** use **Unload model**, then close Luna if the worker remains.
+- **Audio will not play:** confirm the selected output folder and WAV file still exist.
+
+## Documentation
+
+- [Product identity, registry names, shortcuts, and user data](docs/identity-and-data.md)
+- [Payload assembly and release process](docs/releasing.md)
+- [Source and redistribution audit](docs/publication-audit.md)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 ## Model sources
 
-- David Attenborough XTTS: <https://huggingface.co/drewThomasson/xtts_David_Attenborough_fine_tune>
-- E-Girl RVC V2: <https://voice-models.com/model/1uZvOaYhqJv>
-- Qwen Fast: <https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base>
-- Qwen Best: <https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base>
+- [David Attenborough XTTS fine-tune](https://huggingface.co/drewThomasson/xtts_David_Attenborough_fine_tune)
+- [E-Girl RVC V2](https://voice-models.com/model/1uZvOaYhqJv)
+- [Qwen 0.6B](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base)
+- [Qwen 1.7B](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base)
