@@ -32,3 +32,8 @@ assets/egirl-source-reference.wav
 uv.lock
 dist/
 *.egg-info/
+
+# Optional model packs and isolated local verification data
+data/model-packs/
+data/qa/
+data/qa-real/

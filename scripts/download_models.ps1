@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("david", "egirl", "qwen-fast", "qwen-best")]
+  [ValidateSet("david", "egirl", "qwen-fast", "qwen-best", "qwen-voices-fast", "qwen-voices-high", "qwen-clone-fast", "qwen-clone-high")]
   [string]$Model,
   [switch]$All
 )
@@ -52,15 +52,16 @@ function Install-Egirl {
   Write-Host "E-Girl RVC extracted to $destination"
 }
 
-function Install-Qwen([string]$Repository) {
-  $env:HF_HOME = Join-Path $ProjectRoot "data\model_cache"
-  & ".venv\Scripts\python.exe" -c "from huggingface_hub import snapshot_download; snapshot_download('$Repository', local_files_only=False)"
-  if ($LASTEXITCODE -ne 0) { throw "Qwen download failed: $Repository" }
-  Write-Host "$Repository downloaded to the local Hugging Face cache."
+function Install-Qwen([string]$Pack) {
+  & ".venv\Scripts\python.exe" scripts\acquire_voice_packs.py $Pack
+  if ($LASTEXITCODE -ne 0) { throw "Qwen download failed: $Pack" }
+  Write-Host "$Pack verified and installed in data\model-packs."
 }
 
 if ($All -or $Model -eq "david") { Install-David }
 if ($All -or $Model -eq "egirl") { Install-Egirl }
-if ($All -or $Model -eq "qwen-fast") { Install-Qwen "Qwen/Qwen3-TTS-12Hz-0.6B-Base" }
-if ($All -or $Model -eq "qwen-best") { Install-Qwen "Qwen/Qwen3-TTS-12Hz-1.7B-Base" }
+if ($All -or $Model -in @("qwen-fast", "qwen-clone-fast")) { Install-Qwen "qwen-clone-fast" }
+if ($All -or $Model -in @("qwen-best", "qwen-clone-high")) { Install-Qwen "qwen-clone-high" }
+if ($All -or $Model -eq "qwen-voices-fast") { Install-Qwen "qwen-voices-fast" }
+if ($All -or $Model -eq "qwen-voices-high") { Install-Qwen "qwen-voices-high" }
 if (-not $All -and -not $Model) { throw "Choose -Model david|egirl|qwen-fast|qwen-best or use -All." }

@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
+const { resolveOutputFile } = require("./output-files.cjs");
 
 const APP_ID = "com.instrumenta.luna";
 const START_PORT = 7865;
@@ -20,6 +21,13 @@ let backendStopping = false;
 let quitting = false;
 let shutdownComplete = false;
 
+// Explicit data root supports portable runs and isolated packaged-runtime tests.
+if (process.env.LUNA_USER_DATA_DIRECTORY) {
+  const directory = process.env.LUNA_USER_DATA_DIRECTORY;
+  if (!path.isAbsolute(directory)) throw new Error("LUNA_USER_DATA_DIRECTORY must be an absolute path.");
+  fs.mkdirSync(directory, { recursive: true });
+  app.setPath("userData", directory);
+}
 app.setAppUserModelId(APP_ID);
 
 function projectRoot() {
@@ -29,6 +37,12 @@ function projectRoot() {
 function runtimePaths() {
   const userRoot = app.getPath("userData");
   const packaged = app.isPackaged;
+  const legacyRoot = path.join(userRoot, "data", "legacy");
+  const modelRoot = path.join(process.resourcesPath, "model-data");
+  const existingModelPath = (...parts) => {
+    const bundled = path.join(modelRoot, ...parts);
+    return fs.existsSync(bundled) ? bundled : path.join(legacyRoot, ...parts);
+  };
   return {
     backendRoot: packaged ? path.join(process.resourcesPath, "backend") : projectRoot(),
     python: packaged
@@ -37,10 +51,10 @@ function runtimePaths() {
     data: path.join(userRoot, "data"),
     runtime: path.join(userRoot, "runtime"),
     logs: path.join(userRoot, "logs"),
-    models: packaged ? path.join(process.resourcesPath, "model-data", "models") : path.join(projectRoot(), "data", "models"),
+    models: packaged ? (fs.existsSync(existingModelPath("models")) ? existingModelPath("models") : path.join(userRoot, "data", "models")) : path.join(projectRoot(), "data", "models"),
     hfHome: packaged ? path.join(userRoot, "model_cache") : path.join(projectRoot(), "data", "model_cache"),
-    qwenFast: packaged ? path.join(process.resourcesPath, "model-data", "qwen", "qwen-fast") : null,
-    qwenBest: packaged ? path.join(process.resourcesPath, "model-data", "qwen", "qwen-best") : null,
+    qwenFast: packaged ? existingModelPath("qwen", "qwen-fast") : null,
+    qwenBest: packaged ? existingModelPath("qwen", "qwen-best") : null,
   };
 }
 
@@ -73,6 +87,12 @@ function outputDirectory() {
   const directory = readDesktopSettings().outputDirectory;
   fs.mkdirSync(directory, { recursive: true });
   return directory;
+}
+
+function outputDirectories() {
+  const settings = readDesktopSettings();
+  return [...new Set([settings.outputDirectory, ...(Array.isArray(settings.outputHistoryDirectories) ? settings.outputHistoryDirectories : [])])]
+    .filter((directory) => typeof directory === "string" && path.isAbsolute(directory));
 }
 
 function findAvailablePort(start = START_PORT) {
@@ -134,8 +154,7 @@ async function startBackend() {
   for (const directory of [paths.data, paths.runtime, paths.logs, paths.hfHome, outputDirectory()]) {
     fs.mkdirSync(directory, { recursive: true });
   }
-  const requiredPaths = [paths.python, path.join(paths.backendRoot, "run.py"), paths.models];
-  if (app.isPackaged) requiredPaths.push(paths.qwenFast, paths.qwenBest);
+  const requiredPaths = [paths.python, path.join(paths.backendRoot, "run.py")];
   for (const required of requiredPaths) {
     if (!fs.existsSync(required)) throw new Error(`The installed runtime is incomplete: ${required}`);
   }
@@ -150,6 +169,7 @@ async function startBackend() {
     APP_IDLE_SHUTDOWN_SECONDS: "0",
     DATA_DIRECTORY: paths.data,
     OUTPUT_DIRECTORY: outputDirectory(),
+    OUTPUT_HISTORY_DIRECTORIES: JSON.stringify(outputDirectories()),
     MODELS_DIRECTORY: paths.models,
     HF_HOME: paths.hfHome,
     RUNTIME_DIRECTORY: paths.runtime,
@@ -158,10 +178,9 @@ async function startBackend() {
     PYTHONNOUSERSITE: "1",
     PYTHONUNBUFFERED: "1",
   };
-  if (paths.qwenFast && paths.qwenBest) {
-    env.QWEN_FAST_PATH = paths.qwenFast;
-    env.QWEN_BEST_PATH = paths.qwenBest;
-  }
+  if (paths.qwenFast && fs.existsSync(paths.qwenFast)) env.QWEN_FAST_PATH = paths.qwenFast;
+  if (paths.qwenBest && fs.existsSync(paths.qwenBest)) env.QWEN_BEST_PATH = paths.qwenBest;
+  env.OUTPUT_HISTORY_LIMIT = "0";
   backendProcess = spawn(paths.python, ["run.py"], {
     cwd: paths.backendRoot,
     env,
@@ -271,6 +290,24 @@ async function restartBackend() {
 }
 
 function registerIpc() {
+  ipcMain.handle("studio:reveal-output", (_event, id) => {
+    const { audio } = resolveOutputFile(outputDirectories(), id);
+    shell.showItemInFolder(audio);
+    return true;
+  });
+  ipcMain.handle("studio:export-output", async (_event, id) => {
+    const { audio, suggestedName } = resolveOutputFile(outputDirectories(), id);
+    const selection = await dialog.showSaveDialog(mainWindow, {
+      title: "Export generated audio",
+      defaultPath: path.join(app.getPath("downloads"), suggestedName),
+      filters: [{ name: "WAV audio", extensions: ["wav"] }],
+    });
+    if (selection.canceled || !selection.filePath) return { exported: false };
+    if (path.resolve(selection.filePath) !== path.resolve(audio)) {
+      await fs.promises.copyFile(audio, selection.filePath);
+    }
+    return { exported: true, path: selection.filePath };
+  });
   ipcMain.handle("studio:get-output-directory", () => outputDirectory());
   ipcMain.handle("studio:open-output-directory", () => shell.openPath(outputDirectory()));
   ipcMain.handle("studio:choose-output-directory", async () => {
@@ -284,7 +321,7 @@ function registerIpc() {
     fs.mkdirSync(selected, { recursive: true });
     fs.accessSync(selected, fs.constants.R_OK | fs.constants.W_OK);
     if (selected === outputDirectory()) return { changed: false, path: selected };
-    writeDesktopSettings({ outputDirectory: selected });
+    writeDesktopSettings({ ...readDesktopSettings(), outputDirectory: selected, outputHistoryDirectories: outputDirectories() });
     await restartBackend();
     return { changed: true, path: selected };
   });

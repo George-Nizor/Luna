@@ -2,13 +2,13 @@
 
 ## Product identity
 
-Luna 0.3.0 is a cleanly reinstalled Windows x64 application. Its stable identity is:
+Luna 0.4.1 is a Windows x64 application. Its stable identity is:
 
 - Product, shortcut, installer, executable, and window title: `Luna`
 - Windows executable: `Luna.exe`
 - Application ID: `com.instrumenta.luna`
 - npm and Python project name: `luna`
-- Windows uninstall display name: `Luna`
+- Windows uninstall display name: `Luna <version>` (older installers may use `Luna`)
 
 “Luna Voice Studio” is an obsolete product identity. The 0.3.0 installer does not migrate its
 settings, caches, shortcuts, registry entry, or generated output.
@@ -16,6 +16,8 @@ settings, caches, shortcuts, registry entry, or generated output.
 ## User-owned locations
 
 - Settings, profiles, backend state, and logs: `%APPDATA%\Luna`
+- Preserved models from older Luna installations: `%APPDATA%\Luna\data\legacy`
+- Downloaded optional models: `%APPDATA%\Luna\data\model-packs`
 - Default generated output: `%USERPROFILE%\Documents\Luna`
 - Installed executable: the per-user directory selected by the Luna installer
 
@@ -23,7 +25,14 @@ Uninstall removes the application and its registered shortcuts. It does not sile
 `%APPDATA%\Luna` or generated audio. A deliberate cleanup can remove those only after the user has
 confirmed the content is disposable or backed up.
 
-## Clean reinstall checklist
+## Upgrading Luna
+
+The 0.4.1 installer preserves bundled voice weights from an existing Luna installation before
+invoking its uninstaller. It checks every copy by size and SHA-256 and stops before removal if a
+copy fails or an existing preserved file differs. Settings, acquired packs, and generated output
+remain in their persistent locations. This is separate from the historical product rename below.
+
+## Historical rename: clean reinstall checklist
 
 1. Back up any old recordings that must be retained.
 2. Uninstall “Luna Voice Studio” through its registered Windows uninstaller.
@@ -34,5 +43,5 @@ confirmed the content is disposable or backed up.
 6. Remove old caches and disposable outputs only after the new installation generates and plays a
    test WAV successfully.
 
-No automatic migration is intentional: it prevents old settings and model caches from becoming
-implicit dependencies of the renamed product.
+The historical rename intentionally did not migrate the retired identity. Updates between Luna
+versions preserve the current identity and user data.

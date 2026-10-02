@@ -21,7 +21,7 @@ LANGUAGES = [
     "Italian",
 ]
 Quality = Literal["fast", "best"]
-VoiceChoice = Literal["david", "egirl", "profile"]
+VoiceChoice = str
 
 
 class ProfileMetadata(BaseModel):
@@ -47,6 +47,15 @@ class OutputMetadata(BaseModel):
     duration_seconds: float
     created_at: datetime
     filename: str = "output.wav"
+    # Defaults preserve outputs created by older Luna versions.
+    text: str | None = None
+    voice: str | None = None
+    instruction: str = ""
+    seed: int | None = None
+    sample_rate: int | None = None
+    size_bytes: int = 0
+    generation_seconds: float | None = None
+    parameters: dict = Field(default_factory=dict)
 
 
 class GenerationRequest(BaseModel):
@@ -55,6 +64,9 @@ class GenerationRequest(BaseModel):
     language: str = "English"
     voice: VoiceChoice = "david"
     quality: Quality | None = None
+    instruction: str = Field(default="", max_length=500)
+    seed: int | None = Field(default=None, ge=0, le=4294967295)
+    temperature: float | None = Field(default=None, ge=0.2, le=1.2)
 
 
 class ErrorBody(BaseModel):

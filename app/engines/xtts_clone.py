@@ -23,6 +23,7 @@ class XttsAttenboroughEngine:
         self.cuda_active = False
         self.reference_path: Path | None = None
         self.inference_settings: dict[str, float | int] = {}
+        self.max_audio_seconds = 0.0
 
     def load(self) -> None:
         config_path = next(iter(self.model_directory.glob("**/config*.json")), None)
@@ -71,6 +72,7 @@ class XttsAttenboroughEngine:
         if self.cuda_active:
             self.model.cuda()
         self.output_sample_rate = int(config.audio.output_sample_rate)
+        self.max_audio_seconds = (int(config.model_args.gpt_max_audio_tokens) - 4) * int(config.model_args.gpt_code_stride_len) / int(config.model_args.input_sample_rate)
         self.reference_path = reference
         self.conditioning_latents = self.model.get_conditioning_latents(
             str(reference),
@@ -130,6 +132,10 @@ class XttsAttenboroughEngine:
                 **self.inference_settings,
             )
             array = np.asarray(result["wav"], dtype=np.float32).reshape(-1)
+            if self.max_audio_seconds and len(array) / self.output_sample_rate >= self.max_audio_seconds:
+                error = RuntimeError("XTTS reached its audio limit. Use shorter segments instead of saving partial speech.")
+                error.code = "AUDIO_LIMIT_REACHED"
+                raise error
             if array.size == 0 or not np.isfinite(array).all():
                 raise RuntimeError("XTTS returned an invalid waveform")
             if sample_rate is None:

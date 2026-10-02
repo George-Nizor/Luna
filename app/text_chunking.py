@@ -90,8 +90,8 @@ def chunk_text(text: str, target: int = 350, maximum: int = 500) -> list[str]:
                         flush()
                         current = part
                 else:
-                    if current and len(current) + 1 + len(part) > maximum:
-                        flush()
+                    # Emit accumulated words before starting a large piece.
+                    flush()
                     current = part
                 if len(current) >= target:
                     flush()

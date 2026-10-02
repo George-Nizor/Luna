@@ -15,6 +15,21 @@ import soundfile as sf
 from .base import GenerationResult
 
 
+def ensure_audio_budget(waveform: np.ndarray, sample_rate: int, max_new_tokens: int) -> None:
+    """Reject codec-budget exhaustion instead of saving a partial phrase."""
+    if len(waveform) / sample_rate >= max(1, max_new_tokens - 4) / 12.5:
+        error = RuntimeError("The voice model reached its audio limit. Shorten the text or use smaller segments.")
+        error.code = "AUDIO_LIMIT_REACHED"
+        raise error
+
+
+def sampling_parameters(temperature: float) -> dict:
+    """Use explicit, conservative decoder sampling for both Qwen variants."""
+    return {"do_sample": True, "temperature": temperature, "top_p": 0.9, "top_k": 50,
+            "repetition_penalty": 1.05, "subtalker_dosample": True,
+            "subtalker_temperature": temperature, "subtalker_top_p": 0.9, "subtalker_top_k": 50}
+
+
 class CudaUnavailableError(RuntimeError):
     pass
 
@@ -40,6 +55,7 @@ class QwenCloneEngine:
         self.torch = None
         self.cuda_active = False
         self.voice_prompt_cache: dict[str, object] = {}
+        self.temperature = 0.7
 
     def load(self) -> None:
         import torch
@@ -63,7 +79,7 @@ class QwenCloneEngine:
         else:
             from huggingface_hub import snapshot_download
 
-            model_source = snapshot_download(self.model_id, local_files_only=self.offline_mode)
+            model_source = snapshot_download(self.model_id, local_files_only=True)
 
         kwargs: dict[str, object] = {"device_map": device, "dtype": dtype}
         try:
@@ -127,8 +143,10 @@ class QwenCloneEngine:
                 language=language,
                 voice_clone_prompt=prepared_prompt,
                 max_new_tokens=self.max_new_tokens,
+                **sampling_parameters(self.temperature),
             )
             waveform, returned_rate = self._waveform_and_rate(generated)
+            ensure_audio_budget(waveform, returned_rate, self.max_new_tokens)
             if sample_rate is None:
                 sample_rate = returned_rate
             elif returned_rate != sample_rate:

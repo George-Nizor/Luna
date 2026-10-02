@@ -1,6 +1,7 @@
 const path = require("node:path");
 
 const projectRoot = __dirname;
+const version = require("./package.json").version;
 const installedPayloadRoot = process.env.LUNA_INSTALLED_PAYLOAD_ROOT
   ? path.resolve(process.env.LUNA_INSTALLED_PAYLOAD_ROOT)
   : "";
@@ -10,6 +11,8 @@ const pythonBase = installedPayloadRoot
 if (!pythonBase) {
   throw new Error("VOICE_STUDIO_PYTHON_BASE or LUNA_INSTALLED_PAYLOAD_ROOT must supply the local Python runtime.");
 }
+
+const includeModels = process.env.LUNA_INCLUDE_BUNDLED_MODELS === "true";
 
 const modelSource = installedPayloadRoot
   ? path.join(installedPayloadRoot, "model-data", "models")
@@ -28,15 +31,21 @@ const extraResources = [
   {
     from: pythonBase,
     to: "python",
-    filter: ["**/*", "!**/__pycache__/**", "!**/*.pyc", "!include/**", "!libs/**", "!Scripts/**"],
+    filter: ["**/*", "!**/__pycache__/**", "!**/*.pyc", "!include/**", "!libs/**", "!Scripts/**",
+      ...(!includeModels ? ["!Lib/site-packages/rvc_python/base_model/**"] : [])],
   },
   ...(!installedPayloadRoot ? [{
     from: path.join(projectRoot, ".venv", "Lib", "site-packages"),
     to: "python/Lib/site-packages",
-    filter: ["**/*", "!**/__pycache__/**", "!**/*.pyc", "!**/*.pyo", "!**/tests/**", "!**/test/**"],
+    filter: ["**/*", "!**/__pycache__/**", "!**/*.pyc", "!**/*.pyo", "!**/tests/**", "!**/test/**",
+      ...(!includeModels ? ["!rvc_python/base_model/**"] : [])],
   }] : []),
-  { from: modelSource, to: "model-data/models", filter: ["**/*", "!.gitkeep"] },
-  { from: qwenSource, to: "model-data/qwen", filter: ["**/*"] },
+  ...(includeModels ? [
+    { from: modelSource, to: "model-data/models", filter: ["**/*", "!.gitkeep"] },
+    { from: qwenSource, to: "model-data/qwen", filter: ["**/*"] },
+  ] : []),
+  { from: path.join(projectRoot, "LICENSE"), to: "LICENSE.txt" },
+  { from: path.join(projectRoot, "THIRD_PARTY_NOTICES.md"), to: "THIRD_PARTY_NOTICES.md" },
   { from: path.join(projectRoot, "assets", "luna-icon.png"), to: "assets/luna-icon.png" },
 ];
 
@@ -51,6 +60,7 @@ module.exports = {
   compression: "store",
   directories: {
     output: "release",
+    buildResources: "packaging",
   },
   files: [
     "electron/**/*",
@@ -65,6 +75,7 @@ module.exports = {
     artifactName: "Luna-Installer-${version}.${ext}",
   },
   nsis: {
+    include: path.join(projectRoot, "packaging", "installer.nsh"),
     oneClick: false,
     perMachine: false,
     allowElevation: true,
@@ -81,6 +92,6 @@ module.exports = {
     artifactName: "Luna-Installer-${version}.${ext}",
     // Offline bundles resolve the checksum-bound package beside the installer.
     // Replace this non-routable URL only when a real private release host exists.
-    appPackageUrl: "https://github.com/George-Nizor/Luna/releases/download/v0.3.0/luna-0.3.0-x64.nsis.7z",
+    appPackageUrl: `https://github.com/George-Nizor/Luna/releases/download/v${version}/luna-${version}-x64.nsis.7z`,
   },
 };

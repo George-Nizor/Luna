@@ -17,7 +17,7 @@ def test_luna_identity_is_consistent() -> None:
 
     assert package["name"] == "luna"
     assert package["productName"] == "Luna"
-    assert package["version"] == __version__ == product["version"] == "0.3.0"
+    assert package["version"] == __version__ == product["version"] == tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
     assert Settings().app_name == "Luna"
     assert product["id"] == "luna"
     assert product["adapter"]["type"] == "installed-desktop"
@@ -34,4 +34,4 @@ def test_unlicensed_reference_audio_is_ignored() -> None:
 def test_python_package_discovery_is_explicit() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert project["tool"]["setuptools"]["packages"]["find"]["include"] == ["app", "app.*"]
-    assert project["tool"]["setuptools"]["package-data"]["app"] == ["static/*", "templates/*"]
+    assert project["tool"]["setuptools"]["package-data"]["app"] == ["static/*", "templates/*", "voice_packs.json"]

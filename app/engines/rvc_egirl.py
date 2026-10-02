@@ -69,6 +69,7 @@ class EgirlRvcEngine:
         allow_cpu: bool,
         max_new_tokens: int,
         offline_mode: bool = False,
+        use_custom_source: bool = False,
     ):
         self.rvc_directory = rvc_directory
         self.qwen_model_id = qwen_model_id
@@ -76,6 +77,7 @@ class EgirlRvcEngine:
         self.allow_cpu = allow_cpu
         self.max_new_tokens = max_new_tokens
         self.offline_mode = offline_mode
+        self.use_custom_source = use_custom_source
         self.source_engine: QwenCloneEngine | None = None
         self.rvc = None
         self.cuda_active = False
@@ -86,10 +88,11 @@ class EgirlRvcEngine:
         index_file = next(iter(self.rvc_directory.glob("**/*.index")), None)
         if checkpoint is None:
             raise RuntimeError("The extracted E-Girl RVC model does not contain a .pth checkpoint.")
-        base_candidates = [Path(root) / "rvc_python" / "base_model" for root in site.getsitepackages()]
+        base_candidates = [self.rvc_directory.parents[2] / "rvc-runtime" / "base_model"]
+        base_candidates.extend(Path(root) / "rvc_python" / "base_model" for root in site.getsitepackages())
         base_candidates.append(Path(sys.prefix) / "Lib" / "site-packages" / "rvc_python" / "base_model")
-        base_directory = next((candidate for candidate in base_candidates if candidate.parent.is_dir()), base_candidates[0])
-        missing_base_assets = [name for name in ("hubert_base.pt",) if not (base_directory / name).is_file()]
+        base_directory = next((candidate for candidate in base_candidates if all((candidate / name).is_file() for name in ("hubert_base.pt", "rmvpe.pt"))), base_candidates[0])
+        missing_base_assets = [name for name in ("hubert_base.pt", "rmvpe.pt") if not (base_directory / name).is_file()]
         if missing_base_assets:
             raise RuntimeError(
                 "The E-Girl archive contains the checkpoint and index, but is missing local RVC base asset(s): "
@@ -118,6 +121,8 @@ class EgirlRvcEngine:
         if not self.cuda_active and not self.allow_cpu:
             raise RuntimeError("CUDA is unavailable for the E-Girl RVC model. Set ALLOW_CPU=true for CPU mode.")
         self.rvc = RVCInference(device="cuda:0" if self.cuda_active else "cpu")
+        # Config remains in the runtime; HuBERT/RMVPE may have been preserved from an older installer.
+        self.rvc.vc.lib_dir = str(base_directory.parent)
         self.rvc.load_model(str(checkpoint), version="v2", index_path=str(index_file) if index_file else "")
         # The model page identifies this checkpoint as RMVPE and its best
         # female-source preview uses pitch 0. rvc-python otherwise defaults to
@@ -139,7 +144,10 @@ class EgirlRvcEngine:
             self.reference_path = next(iter(self.rvc_directory.glob("**/*.wav")), None)
         if self.reference_path is None:
             raise RuntimeError("E-Girl RVC requires its bundled clean female source reference.")
-        self.source_engine = QwenCloneEngine(
+        from .qwen_custom import QwenCustomVoiceEngine
+
+        source_type = QwenCustomVoiceEngine if self.use_custom_source else QwenCloneEngine
+        self.source_engine = source_type(
             model_id=self.qwen_model_id,
             allow_cpu=self.allow_cpu,
             max_new_tokens=self.max_new_tokens,
@@ -172,7 +180,7 @@ class EgirlRvcEngine:
                 language=language,
                 reference_audio_path=self.reference_path,
                 reference_transcript=reference_transcript or "This is a local voice sample.",
-                profile_id=profile_id,
+                profile_id="qwen:serena" if self.use_custom_source else profile_id,
                 output_path=source_path,
                 silence_ms=silence_ms,
             )

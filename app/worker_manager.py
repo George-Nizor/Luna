@@ -143,6 +143,9 @@ class WorkerManager:
         profile_id: str,
         output_path: Path,
         silence_ms: int,
+        instruction: str = "",
+        seed: int | None = None,
+        temperature: float = 0.7,
     ) -> dict[str, Any]:
         if not self._accepting:
             raise RuntimeError("application is shutting down")
@@ -165,11 +168,14 @@ class WorkerManager:
                         "job_id": job_id,
                         "text_chunks": text_chunks,
                         "language": language,
-                        "reference_audio_path": str(reference_audio_path),
+                        "reference_audio_path": str(reference_audio_path) if reference_audio_path else None,
                         "reference_transcript": reference_transcript,
                         "profile_id": profile_id,
                         "output_path": str(output_path),
                         "silence_ms": silence_ms,
+                        "instruction": instruction,
+                        "seed": seed,
+                        "temperature": temperature,
                     }
                 )
                 deadline = time.monotonic() + self.settings.generation_timeout_seconds

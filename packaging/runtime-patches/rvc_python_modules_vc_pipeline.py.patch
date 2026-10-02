@@ -1,0 +1,18 @@
+--- a/rvc_python/modules/vc/pipeline.py
++++ b/rvc_python/modules/vc/pipeline.py
+@@ -11,7 +11,6 @@
+ import faiss
+ import librosa
+ import numpy as np
+-import parselmouth
+ import pyworld
+ import torch
+ import torch.nn.functional as F
+@@ -100,6 +99,7 @@
+         f0_mel_min = 1127 * np.log(1 + f0_min / 700)
+         f0_mel_max = 1127 * np.log(1 + f0_max / 700)
+         if f0_method == "pm":
++            import parselmouth  # Optional upstream Praat mode; not used by Luna.
+             f0 = (
+                 parselmouth.Sound(x, self.sr)
+                 .to_pitch_ac(

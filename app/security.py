@@ -26,7 +26,13 @@ def is_uuid4(value: str) -> bool:
 def safe_child_path(root: Path, child: str | Path, *, must_exist: bool = False) -> Path:
     """Resolve a child and ensure it remains within root, rejecting symlinks."""
     root_resolved = root.resolve()
-    candidate = (root_resolved / Path(child)).resolve(strict=False)
+    unresolved = root_resolved / Path(child)
+    current = unresolved
+    while current != root_resolved and current != current.parent:
+        if current.is_symlink():
+            raise ValueError("symlinks are not allowed in storage paths")
+        current = current.parent
+    candidate = unresolved.resolve(strict=False)
     if candidate != root_resolved and root_resolved not in candidate.parents:
         raise ValueError("path escapes its storage directory")
     if must_exist and not candidate.exists():

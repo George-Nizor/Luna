@@ -2,11 +2,13 @@
 param(
   [switch]$UnpackedOnly,
   [string]$InstalledPayloadRoot,
-  [switch]$SkipReleaseSplit
+  [switch]$SkipReleaseSplit,
+  [switch]$IncludeModels
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+$Version = (Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw | ConvertFrom-Json).version
 Set-Location $ProjectRoot
 
 $usingInstalledPayload = -not [string]::IsNullOrWhiteSpace($InstalledPayloadRoot)
@@ -18,10 +20,7 @@ if ($usingInstalledPayload) {
     (Join-Path $pythonBase "python.exe"),
     (Join-Path $pythonBase "Lib\site-packages\torch"),
     (Join-Path $pythonBase "Lib\site-packages\qwen_tts"),
-    (Join-Path $InstalledPayloadRoot "model-data\models\xtts\david_attenborough"),
-    (Join-Path $InstalledPayloadRoot "model-data\models\rvc\egirl\egirl.pth"),
-    (Join-Path $InstalledPayloadRoot "model-data\qwen\qwen-fast\config.json"),
-    (Join-Path $InstalledPayloadRoot "model-data\qwen\qwen-best\config.json"),
+
     (Join-Path $ProjectRoot "assets\luna-icon.ico")
   )
 } else {
@@ -34,25 +33,27 @@ if ($usingInstalledPayload) {
     (Join-Path $pythonBase "python.exe"),
     (Join-Path $ProjectRoot ".venv\Lib\site-packages\torch"),
     (Join-Path $ProjectRoot ".venv\Lib\site-packages\qwen_tts"),
-    (Join-Path $ProjectRoot "data\models\xtts\david_attenborough"),
-    (Join-Path $ProjectRoot "data\models\rvc\egirl\egirl.pth"),
-    (Join-Path $ProjectRoot "assets\egirl-source-reference.wav"),
-    (Join-Path $ProjectRoot "assets\luna-icon.ico"),
-    (Join-Path $ProjectRoot "data\model_cache\hub\models--Qwen--Qwen3-TTS-12Hz-0.6B-Base"),
-    (Join-Path $ProjectRoot "data\model_cache\hub\models--Qwen--Qwen3-TTS-12Hz-1.7B-Base")
+
+    (Join-Path $ProjectRoot "assets\luna-icon.ico")
   )
 }
 $missing = $required | Where-Object { -not (Test-Path -LiteralPath $_) }
 if ($missing) { throw "The complete installer payload is missing:`n$($missing -join "`n")" }
-if (-not $usingInstalledPayload) {
+if ($IncludeModels -and -not $usingInstalledPayload) {
   Copy-Item -LiteralPath (Join-Path $ProjectRoot "assets\egirl-source-reference.wav") -Destination (Join-Path $ProjectRoot "data\models\rvc\egirl\source_ref.wav") -Force
 }
 
 function Add-FlattenedQwenSnapshot([string]$RepositoryCache, [string]$TargetName) {
-  $revision = (Get-Content -Raw -LiteralPath (Join-Path $RepositoryCache "refs\main")).Trim()
-  $snapshot = Join-Path $RepositoryCache "snapshots\$revision"
+  $packId = $(if ($TargetName -eq "qwen-fast") { "qwen-clone-fast" } else { "qwen-clone-high" })
+  $managedSnapshot = Join-Path $ProjectRoot "data\model-packs\$packId"
+  if (Test-Path -LiteralPath (Join-Path $managedSnapshot "installed.json")) {
+    $snapshot = $managedSnapshot
+  } else {
+    $revision = (Get-Content -Raw -LiteralPath (Join-Path $RepositoryCache "refs\main")).Trim()
+    $snapshot = Join-Path $RepositoryCache "snapshots\$revision"
+  }
   if (-not (Test-Path -LiteralPath (Join-Path $snapshot "config.json"))) {
-    throw "Qwen snapshot is incomplete: $snapshot"
+    throw "Qwen snapshot is incomplete. Download $packId first: $snapshot"
   }
   $target = Join-Path $payloadRoot $TargetName
   New-Item -ItemType Directory -Force -Path $target | Out-Null
@@ -74,32 +75,34 @@ $buildRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot "build"))
 if (-not $payloadFullPath.StartsWith($buildRoot, [StringComparison]::OrdinalIgnoreCase)) {
   throw "Refusing to prepare a model payload outside the project build directory."
 }
-if (-not $usingInstalledPayload) {
+if ($IncludeModels -and -not $usingInstalledPayload) {
   if (Test-Path -LiteralPath $payloadRoot) { Remove-Item -LiteralPath $payloadRoot -Recurse -Force }
   Add-FlattenedQwenSnapshot (Join-Path $ProjectRoot "data\model_cache\hub\models--Qwen--Qwen3-TTS-12Hz-0.6B-Base") "qwen-fast"
   Add-FlattenedQwenSnapshot (Join-Path $ProjectRoot "data\model_cache\hub\models--Qwen--Qwen3-TTS-12Hz-1.7B-Base") "qwen-best"
 }
 
+$env:LUNA_INCLUDE_BUNDLED_MODELS = $(if ($IncludeModels) { "true" } else { "false" })
 $env:VOICE_STUDIO_PYTHON_BASE = $pythonBase
 if ($usingInstalledPayload) { $env:LUNA_INSTALLED_PAYLOAD_ROOT = $InstalledPayloadRoot }
 try {
   if ($UnpackedOnly) {
-    & .\node_modules\.bin\electron-builder.cmd --win dir --x64 --config electron-builder.config.cjs
+    & .\node_modules\.bin\electron-builder.cmd --win dir --x64 --publish never --config electron-builder.config.cjs
   } else {
-    & .\node_modules\.bin\electron-builder.cmd --win nsis-web --x64 --config electron-builder.config.cjs
+    & .\node_modules\.bin\electron-builder.cmd --win nsis-web --x64 --publish never --config electron-builder.config.cjs
   }
   if ($LASTEXITCODE -ne 0) { throw "electron-builder failed with exit code $LASTEXITCODE." }
   if (-not $UnpackedOnly -and -not $SkipReleaseSplit) {
-    $installer = @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "release") -Recurse -File -Filter "Luna-Installer-0.3.0.exe" | Where-Object { $_.FullName -notlike "*\publish\*" })
-    $sidecar = @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "release") -Recurse -File -Filter "luna-0.3.0-x64.nsis.7z" | Where-Object { $_.FullName -notlike "*\publish\*" })
+    $installer = @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "release") -Recurse -File -Filter "Luna-Installer-$Version.exe" | Where-Object { $_.FullName -notlike "*\publish\*" })
+    $sidecar = @(Get-ChildItem -LiteralPath (Join-Path $ProjectRoot "release") -Recurse -File -Filter "luna-$Version-x64.nsis.7z" | Where-Object { $_.FullName -notlike "*\publish\*" })
     if ($installer.Count -ne 1 -or $sidecar.Count -ne 1) {
-      throw "Expected one Luna 0.3.0 installer and one matching NSIS sidecar before release splitting."
+      throw "Expected one Luna $Version installer and one matching NSIS sidecar before release splitting."
     }
     & (Join-Path $PSScriptRoot "split_release_assets.ps1") -InputPath $sidecar[0].FullName -InstallerPath $installer[0].FullName
     if ($LASTEXITCODE -ne 0) { throw "Release asset preparation failed with exit code $LASTEXITCODE." }
   }
 } finally {
+  Remove-Item Env:LUNA_INCLUDE_BUNDLED_MODELS -ErrorAction SilentlyContinue
   Remove-Item Env:VOICE_STUDIO_PYTHON_BASE -ErrorAction SilentlyContinue
   Remove-Item Env:LUNA_INSTALLED_PAYLOAD_ROOT -ErrorAction SilentlyContinue
-  if (-not $usingInstalledPayload -and (Test-Path -LiteralPath $payloadRoot)) { Remove-Item -LiteralPath $payloadRoot -Recurse -Force }
+  if ($IncludeModels -and -not $usingInstalledPayload -and (Test-Path -LiteralPath $payloadRoot)) { Remove-Item -LiteralPath $payloadRoot -Recurse -Force }
 }

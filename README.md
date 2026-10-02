@@ -2,149 +2,105 @@
 
 # Luna
 
-Luna is a Windows desktop app for generating speech with local GPU models. It carries its own Python
-runtime and opens a private backend inside a hardened Electron window. Text, reference audio, voice
-profiles, and generated WAV files stay on the computer.
+Luna is a Windows desktop app for local GPU speech generation, launched from Instrumenta, the Start
+menu, or `Luna.exe`. It includes its Python runtime and opens a private backend in an Electron window.
+Text, reference recordings, profiles, and generated WAV files remain on your computer.
 
-Current version: **0.3.0**.
+Current source version: **0.4.1**.
 
-## Open it
+## Choose voices and models
 
-Use the Luna card in Instrumenta, the Start menu entry, or `Luna.exe`. Instrumenta treats Luna as an
-installed desktop application: it checks the Windows installation record and launches the registered
-executable.
+Open **Get / Manage Voices**. Choose which speakers appear in your voice menu, then download the
+quality packs you want. The catalog displays exact download sizes, available disk space, official
+sources, installation status, and progress. Downloads can be paused and resumed. Every file is
+checked against a pinned revision and checksum before the pack becomes available.
 
-Choose a voice, enter the text, select Fast or Best when the voice supports both, then generate. The
-history drawer keeps previous sounds available for replay.
+- **Official Qwen speakers:** Ryan, Aiden, Vivian, Serena, Uncle Fu, Dylan, Eric, Ono Anna, and Sohee.
+  Fast uses the 0.6B CustomVoice model; High uses the separate 1.7B CustomVoice model.
+- **Shared voice packs:** Fast is approximately 2.50 GB and High approximately 4.52 GB. Each includes
+  all nine speakers. Selecting one speaker does not require another copy of the shared weights.
+- **Saved voice profiles:** Upload a recording you own or have permission to use, and its exact
+  transcript. Separate optional Base packs provide Fast and High voice cloning.
+- **David Attenborough:** Existing offline installations can retain this XTTS fine-tune. It contains
+  one checkpoint, labeled **Original**. A quality switch cannot create a higher-quality checkpoint.
+- **E-Girl:** Existing offline installations can retain RVC conversion. When the matching official
+  voice pack is present, Luna uses its Serena speaker as the clean source. Otherwise it uses the
+  existing reference-cloning source. RVC conversion can affect clarity.
 
-Models load after the first generation request. Use **Unload model** when GPU memory is needed
-elsewhere.
+High mode on official Qwen speakers supports optional style directions. Fast does not support that
+control. An optional seed is saved with every generation so you can compare settings. Qwen-based voices also expose sampling temperature (0.2–1.2; default 0.7). Lower values are steadier; higher values add variation.
 
-## Voices
+New installations open the voice library when no selected voice is ready. Model loading never starts
+an implicit download. A compatible CUDA-capable NVIDIA GPU is required by default; larger models
+need more GPU memory. Use **Unload** when another application needs the GPU.
 
-- **David Attenborough** uses the configured XTTS v2 fine-tune and its fixed reference recording. The
-  source provides one checkpoint, so the quality control stays on its real single path.
-- **E-Girl** generates a clean source with Qwen, then applies the E-Girl RVC V2 conversion. Fast uses
-  Qwen 0.6B; Best uses Qwen 1.7B.
-- **Saved profiles** use a user-created reference voice. Fast and Best select the same Qwen engines.
+## Text limits
 
-Qwen models are generation engines, so they do not appear as pretend voices in the voice list.
+The text box displays and enforces the backend's character limit (5,000 by default). Model and
+language determine safe segment sizes; Qwen's configured audio-token budget is also accounted for.
+Qwen currently uses up to 140 characters per Fast segment and 100 per High segment, further reduced when its audio budget requires it. Long text is generated in bounded segments and joined into one WAV. A model exhausting its audio
+budget returns an error rather than saving partial speech as a successful generation.
 
-Use voices and recordings you have permission to use.
+Generation has a one-hour default timeout to accommodate longer High-quality jobs. Administrators
+can adjust the limits in the environment configuration.
 
-## Output and local data
+## Generation library and exports
 
-The default output folder is:
+Sound History keeps every generation until you delete it. Search the text or voice, filter by quality,
+and page through all results. Each entry includes playback, WAV export, metadata export, Explorer
+reveal in the desktop app, and deletion.
 
-```text
-%USERPROFILE%\Documents\Luna
-```
+**Reuse Text** restores the original text, voice, language, quality, style, and seed to the editor.
+Change any parameters, then generate a new output. This preserves the original generation.
 
-Settings can open or change it. A folder change restarts the lightweight backend and leaves the model
-unloaded until the next job.
+Details record model provenance, seed, duration, generation time, sample rate, file size, character
+count, and segment count. Older outputs remain readable. Versions that did not save their text cannot
+supply it for reuse. Audio already deleted by an older retention policy cannot be recovered by Luna.
 
-Other state lives here:
+The default output location is `%USERPROFILE%\Documents\Luna`. Settings can change it. Previous
+selected output folders remain in the library. Exporting a WAV creates a separate copy; deleting the
+generation removes its managed WAV and metadata.
 
-```text
-Settings and runtime data  %APPDATA%\Luna
-Backend log                %APPDATA%\Luna\logs\desktop-backend.log
-Generated audio            the output folder selected in Luna
-```
+Settings and downloaded packs live under `%APPDATA%\Luna`; packs are in `data\model-packs`.
+Backend logs are in `logs\desktop-backend.log`. Uninstalling preserves your data.
 
-Uninstalling the application leaves generated audio and user settings in place. Delete them manually
-only when they are no longer wanted.
-
-## The offline payload
-
-A complete local installation is roughly 15 GB because it contains CUDA-enabled packages, voice
-models, and RVC assets. They have shown no interest in becoming a polite little installer.
-
-The distribution uses these files:
-
-```text
-Luna-Installer-0.3.0.exe
-luna-0.3.0-x64.nsis.7z
-instrumenta-release.json
-```
-
-GitHub upload builds split the sidecar into numbered parts below the per-asset size limit. Instrumenta
-resumes individual downloads, checks free space, verifies every part, rebuilds the sidecar, verifies
-the complete file, and then starts the installer.
-
-The installer and sidecar must be from the same build and sit in the same folder for a manual
-installation. Once Luna is installed and opens correctly, those distribution files can be removed.
-
-## Process lifecycle
-
-Electron starts one loopback backend on `127.0.0.1`. Qwen, XTTS, and RVC run as separate workers.
-Only the active model worker occupies GPU memory.
-
-The worker exits after the configured idle timeout, when **Unload model** is pressed, or when Luna
-closes. Shutdown first asks each process to exit cleanly and uses a bounded termination fallback for
-a stuck child.
-
-No browser, account, OpenAI API key, or separately installed Python is needed by the packaged app.
-
-## Development
-
-Source development is separate from the offline installation:
+## Development and packaging
 
 ```powershell
 .\scripts\setup_dev.ps1
 npm start
-```
-
-Checks and packages:
-
-```powershell
 npm test
 npm run pack
 npm run dist
 ```
 
-`npm run pack` creates an unpacked desktop build. `npm run dist` assembles the complete offline
-installer and writes publishable chunks under `release\publish\v0.3.0`.
+Installers omit optional model weights by default. Choose voices inside Luna after installation.
+The application runtime still includes CUDA dependencies, so the runtime payload is substantial.
+For an explicitly assembled local offline bundle, use `scripts\build_installer.ps1 -IncludeModels`.
 
-Model downloads are fixed by `scripts\download_models.ps1`:
+The verified developer downloader uses the same catalog:
 
 ```powershell
-.\scripts\download_models.ps1 -Model david
-.\scripts\download_models.ps1 -Model egirl
-.\scripts\download_models.ps1 -Model qwen-fast
-.\scripts\download_models.ps1 -Model qwen-best
-.\scripts\download_models.ps1 -All
+.\scripts\download_models.ps1 -Model qwen-voices-fast
+.\scripts\download_models.ps1 -Model qwen-voices-high
+.\scripts\download_models.ps1 -Model qwen-clone-fast
+.\scripts\download_models.ps1 -Model qwen-clone-high
 ```
 
-The repository excludes virtual environments, `node_modules`, model payloads, runtime builds, logs,
-generated audio, and releases.
+The old `qwen-fast` and `qwen-best` command names remain aliases for cloning packs.
+Models, reference recordings, runtime payloads, logs, QA audio, and builds are excluded from Git.
 
-## Publication status
+## Documentation and sources
 
-The source repository is public. The third-party offline payload still has a separate redistribution
-gate covering recordings, model weights, RVC assets, FFmpeg, and the packaged dependency inventory.
-A working local installation does not grant permission to publish those files.
-
-The current evidence and remaining work are recorded in
-[the publication audit](docs/publication-audit.md).
-
-## Troubleshooting
-
-- **Incomplete runtime:** reinstall with the matching EXE and sidecar in one folder.
-- **CUDA unavailable:** update the NVIDIA driver and confirm the machine has a compatible NVIDIA GPU.
-- **Generation failed:** inspect `%APPDATA%\Luna\logs\desktop-backend.log`.
-- **Model stayed loaded:** use **Unload model**, then close Luna if the worker remains.
-- **Audio will not play:** confirm the selected output folder and WAV file still exist.
-
-## Documentation
-
-- [Product identity, registry names, shortcuts, and user data](docs/identity-and-data.md)
-- [Payload assembly and release process](docs/releasing.md)
-- [Source and redistribution audit](docs/publication-audit.md)
+- [Model catalog and generation library](docs/voice-library.md)
+- [Identity and local data](docs/identity-and-data.md)
+- [Release assembly](docs/releasing.md)
+- [Publication audit](docs/publication-audit.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Official Qwen Fast voices](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice)
+- [Official Qwen High voices](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)
+- [David XTTS source](https://huggingface.co/drewThomasson/xtts_David_Attenborough_fine_tune)
+- [E-Girl RVC source](https://voice-models.com/model/1uZvOaYhqJv)
 
-## Model sources
-
-- [David Attenborough XTTS fine-tune](https://huggingface.co/drewThomasson/xtts_David_Attenborough_fine_tune)
-- [E-Girl RVC V2](https://voice-models.com/model/1uZvOaYhqJv)
-- [Qwen 0.6B](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base)
-- [Qwen 1.7B](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-Base)
+Source improvements do not publish or replace an installed release. Redistribution of the runtime,
+legacy recordings, and legacy weights retains the publication audit's separate requirements.

@@ -33,6 +33,7 @@ class FakeVoiceEngine:
         profile_id: str,
         output_path: Path,
         silence_ms: int,
+        instruction: str = "",
     ) -> GenerationResult:
         if not self.loaded:
             raise RuntimeError("fake engine is not loaded")

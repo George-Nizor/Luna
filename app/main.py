@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 import shutil
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -22,7 +24,9 @@ from . import __version__
 from .audio_utils import InvalidAudioError
 from .config import Settings, configure_offline_environment
 from .errors import ApiError, GenerationBusyError, GenerationTimeoutError, WorkerDiedError
+from .generation_policy import QWEN_SPEAKERS, generation_policy
 from .lifecycle import monitor_application, remove_runtime_file, write_runtime_file
+from .model_catalog import PACKS, ModelCatalog, pack_source
 from .schemas import LANGUAGES, GenerationRequest, OutputMetadata
 from .security import new_session_token, require_local_request, validate_uploaded_filename
 from .storage import Storage
@@ -81,6 +85,7 @@ async def lifespan(app: FastAPI):
         monitor.cancel()
         await asyncio.gather(monitor, return_exceptions=True)
         app.state.worker_manager.shutdown()
+        app.state.model_catalog.shutdown()
         remove_runtime_file(settings)
         for handler in list(logger.handlers):
             handler.flush()
@@ -238,14 +243,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         text = payload.text.strip()
         if not text:
             raise ApiError("INVALID_REQUEST", "Text cannot be empty.", 422)
-        if len(text) > selected_settings.max_text_characters:
+        if len(payload.text.encode('utf-16-le')) // 2 > selected_settings.max_text_characters:
             raise ApiError("TEXT_TOO_LONG", "Text exceeds the configured character limit.", 422)
         voice = payload.voice
         # David's repository contains a single complete XTTS fine-tune. It has
-        # no fast/best checkpoint pair, so its one configured path is exposed
-        # honestly as fixed Best quality. E-Girl and profile voices can select
+        # no fast/best checkpoint pair, so the interface calls its one path
+        # Original (the older API quality value remains best). E-Girl and profile voices can select
         # either Qwen source engine.
+        if voice not in {"david", "egirl", "profile"} and voice not in {f"qwen:{speaker}" for speaker in QWEN_SPEAKERS}:
+            raise ApiError("INVALID_REQUEST", "Unknown voice. Choose one from the voice library.", 422)
         quality = "best" if voice == "david" else (payload.quality or selected_settings.default_quality)
+        policy = generation_policy(selected_settings, voice, quality, payload.language)
+        if payload.instruction.strip() and not policy.supports_instruction:
+            raise ApiError("INVALID_REQUEST", "Style instructions require a Qwen voice in High mode.", 422)
+        if payload.temperature is not None and not policy.supports_sampling:
+            raise ApiError("INVALID_REQUEST", "Sampling temperature is available for Qwen-based voices.", 422)
+        temperature = payload.temperature if payload.temperature is not None else 0.7
         is_profile = voice == "profile"
         profile = None
         reference_path = None
@@ -262,8 +275,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             chunks = chunk_text(
                 text,
-                target=selected_settings.text_chunk_target_characters,
-                maximum=selected_settings.text_chunk_max_characters,
+                target=policy.chunk_target_characters,
+                maximum=policy.chunk_max_characters,
             )
         except ValueError as exc:
             raise ApiError("INVALID_REQUEST", str(exc), 422) from exc
@@ -275,10 +288,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             model_id = f"egirl-{quality}"
             display_name = "E-Girl"
             output_profile_id = "fixed:egirl-rvc"
+        elif voice.startswith("qwen:"):
+            pack_id = "qwen-voices-fast" if quality == "fast" else "qwen-voices-high"
+            model_id = PACKS[pack_id]["repository"]
+            display_name = QWEN_SPEAKERS[voice.removeprefix("qwen:")][0]
+            output_profile_id = voice
         else:
             model_id = selected_settings.model_id(quality)
             display_name = profile.name if profile else "Voice profile"
             output_profile_id = profile.id if profile else ""
+        if selected_settings.engine != "fake":
+            catalog = app.state.model_catalog.snapshot()
+            if voice == "profile":
+                pack_id = "qwen-clone-fast" if quality == "fast" else "qwen-clone-high"
+                available = pack_source(selected_settings, pack_id) is not None
+            else:
+                available = quality in next(item["qualities"] for item in catalog["voices"] if item["id"] == voice)
+            if not available:
+                raise ApiError("MODEL_NOT_INSTALLED", "This voice and quality need a local model. Open the voice library to download it.", 422)
+        source_pack = None
+        if voice == "egirl" and selected_settings.engine != "fake":
+            custom_pack = "qwen-voices-fast" if quality == "fast" else "qwen-voices-high"
+            source_pack = custom_pack if pack_source(selected_settings, custom_pack) else "qwen-clone-fast" if quality == "fast" else "qwen-clone-high"
+            model_id = f"egirl-{quality}:{source_pack}"
+        seed = payload.seed if payload.seed is not None else secrets.randbits(32)
+        started = time.monotonic()
         output_id = str(uuid.uuid4())
         try:
             _, output_path = app.state.storage.begin_output(output_id)
@@ -297,6 +331,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 profile_id=profile.id if profile else output_profile_id,
                 output_path=output_path,
                 silence_ms=selected_settings.chunk_silence_milliseconds,
+                instruction=payload.instruction.strip(),
+                seed=seed,
+                temperature=temperature,
             )
             result = await anyio.to_thread.run_sync(run_worker)
             now = _now()
@@ -307,24 +344,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 language=payload.language,
                 quality=quality,
                 model_id=model_id,
-                text_character_count=len(text),
+                text_character_count=len(text.encode('utf-16-le')) // 2,
                 chunk_count=int(result["chunk_count"]),
                 duration_seconds=float(result["duration_seconds"]),
                 created_at=now,
+                text=text, voice=voice, instruction=payload.instruction.strip(), seed=seed,
+                sample_rate=int(result["sample_rate"]), size_bytes=output_path.stat().st_size,
+                generation_seconds=round(time.monotonic() - started, 3),
+                parameters={**policy.as_dict(), "max_new_tokens": selected_settings.max_new_tokens,
+                            "silence_ms": selected_settings.chunk_silence_milliseconds,
+                            "temperature": temperature if policy.supports_sampling else None,
+                            "top_p": 0.9 if policy.supports_sampling else None,
+                            "source_model": result.get("source_model", model_id),
+                            "model_revision": result.get("model_revision")},
             )
             app.state.storage.save_output_metadata(metadata)
             app.state.last_api_activity = now
             return {
-                "id": output_id,
-                "profile_id": output_profile_id,
-                "profile_name": display_name,
-                "quality": quality,
-                "model_id": metadata.model_id,
-                "chunk_count": metadata.chunk_count,
-                "duration_seconds": metadata.duration_seconds,
+                **metadata.model_dump(mode="json"),
                 "audio_url": f"/api/outputs/{output_id}/audio",
                 "download_url": f"/api/outputs/{output_id}/download",
-                "created_at": metadata.created_at.isoformat(),
             }
         except GenerationBusyError as exc:
             raise ApiError("GENERATION_BUSY", "Another generation is already running.", 409) from exc
@@ -340,10 +379,113 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if not (output_path.exists() and (output_path.parent / "metadata.json").exists()):
                 shutil.rmtree(selected_settings.outputs_directory / output_id, ignore_errors=True)
 
-    @app.get("/api/outputs")
-    async def list_outputs(request: Request):
+    @app.get("/api/models")
+    async def model_catalog(request: Request):
         guard(request, state_changing=False)
-        return {"outputs": [output.model_dump(mode="json") for output in app.state.storage.list_outputs()]}
+        return {**app.state.model_catalog.snapshot(), "fake": selected_settings.engine == "fake"}
+
+    @app.post("/api/voices/selection")
+    async def voice_selection(request: Request):
+        guard(request, state_changing=True)
+        try:
+            body = await request.json()
+            voices = body.get("voices")
+            if not isinstance(voices, list) or any(not isinstance(v, str) for v in voices):
+                raise ValueError("Choose voices from the catalog.")
+            app.state.model_catalog.save_selection(voices)
+        except (ValueError, AttributeError) as exc:
+            raise ApiError("INVALID_REQUEST", str(exc), 422) from exc
+        return app.state.model_catalog.snapshot()
+
+    @app.post("/api/models/download")
+    async def download_model(request: Request):
+        guard(request, state_changing=True)
+        try:
+            body = await request.json()
+            pack_id = body.get("pack_id")
+            if not isinstance(pack_id, str):
+                raise ValueError("Choose a voice pack from the catalog.")
+            return app.state.model_catalog.start_download(pack_id)
+        except (ValueError, AttributeError) as exc:
+            raise ApiError("INVALID_REQUEST", str(exc), 422) from exc
+        except RuntimeError as exc:
+            raise ApiError("DOWNLOAD_BUSY", str(exc), 409) from exc
+
+    @app.post("/api/models/download/pause")
+    async def pause_download(request: Request):
+        guard(request, state_changing=True)
+        app.state.model_catalog.cancel_download()
+        return {"status": "pausing"}
+
+    @app.delete("/api/models/{pack_id}")
+    async def remove_model(pack_id: str, request: Request):
+        guard(request, state_changing=True)
+        try:
+            if pack_id not in PACKS:
+                raise ValueError("Unknown voice pack.")
+            # Never remove weights that may be in use by the GPU worker.
+            await anyio.to_thread.run_sync(app.state.worker_manager.unload)
+            app.state.model_catalog.remove_pack(pack_id)
+        except GenerationBusyError as exc:
+            raise ApiError("GENERATION_BUSY", "A generation is using the local models.", 409) from exc
+        except (ValueError, RuntimeError) as exc:
+            raise ApiError("INVALID_REQUEST", str(exc), 422) from exc
+        return {"status": "removed"}
+
+    @app.get("/api/generation-policy")
+    async def get_generation_policy(request: Request, voice: str = "david", quality: str = "best", language: str = "English"):
+        guard(request, state_changing=False)
+        if (voice not in app.state.model_catalog.voice_ids and voice != "profile") or quality not in {"fast", "best"} or language not in LANGUAGES:
+            raise ApiError("INVALID_REQUEST", "Unsupported voice, quality, or language.", 422)
+        return generation_policy(selected_settings, voice, quality, language).as_dict()
+
+    def output_record(output: OutputMetadata) -> dict:
+        record = output.model_dump(mode="json")
+        try:
+            path = app.state.storage.output_audio_path(output.id)
+            record["audio_available"] = path.is_file()
+            record["size_bytes"] = path.stat().st_size
+        except (OSError, ValueError):
+            record["audio_available"] = False
+        return record
+
+    @app.get("/api/outputs")
+    async def list_outputs(request: Request, offset: int = 0, limit: int = 50, q: str = "", voice: str = "", quality: str = "", sort: str = "newest"):
+        guard(request, state_changing=False)
+        if offset < 0 or not 1 <= limit <= 100 or sort not in {"newest", "oldest"} or quality not in {"", "fast", "best"}:
+            raise ApiError("INVALID_REQUEST", "Invalid library filter or page size.", 422)
+        all_outputs = app.state.storage.list_outputs()
+        records = {item.id: output_record(item) for item in all_outputs}
+        outputs = [item for item in all_outputs
+                   if (not q or q.casefold() in f"{item.profile_name} {item.text or ''} {item.model_id}".casefold())
+                   and (not voice or item.voice == voice or item.profile_id == voice)
+                   and (not quality or item.quality == quality)]
+        if sort == "oldest":
+            outputs.reverse()
+        page = [records[output.id] for output in outputs[offset:offset + limit]]
+        return {"outputs": page, "total": len(outputs), "offset": offset, "limit": limit,
+                "stats": {"count": len(all_outputs), "size_bytes": sum(record["size_bytes"] for record in records.values() if record["audio_available"]),
+                          "duration_seconds": sum(item.duration_seconds for item in all_outputs)},
+                "history_limit": selected_settings.output_history_limit}
+
+    @app.get("/api/outputs/{output_id}")
+    async def output_details(output_id: str, request: Request):
+        guard(request, state_changing=False)
+        try:
+            return output_record(app.state.storage.get_output(output_id))
+        except (ValueError, FileNotFoundError) as exc:
+            raise ApiError("OUTPUT_NOT_FOUND", "Generated output not found.", 404) from exc
+
+    @app.get("/api/outputs/{output_id}/metadata")
+    async def output_metadata(output_id: str, request: Request):
+        guard(request, state_changing=False)
+        try:
+            output = app.state.storage.get_output(output_id)
+        except (ValueError, FileNotFoundError) as exc:
+            raise ApiError("OUTPUT_NOT_FOUND", "Generated output not found.", 404) from exc
+        return JSONResponse(output.model_dump(mode="json"), headers={
+            "Content-Disposition": f'attachment; filename="{app.state.storage.download_name(output)[:-4]}.json"'
+        })
 
     @app.get("/api/outputs/{output_id}/audio")
     async def output_audio(output_id: str, request: Request):
@@ -372,6 +514,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             app.state.storage.delete_output(output_id)
         except (ValueError, FileNotFoundError) as exc:
             raise ApiError("OUTPUT_NOT_FOUND", "Generated output not found.", 404) from exc
+        except OSError as exc:
+            raise ApiError("OUTPUT_DELETE_FAILED", "Could not delete this recording. Check folder permissions or close apps using the file and try again.", 409) from exc
         return {"status": "deleted"}
 
     @app.post("/api/worker/unload")
@@ -393,6 +537,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.shutdown_requested = True
         return {"status": "shutting_down"}
 
+    app.state.model_catalog = ModelCatalog(selected_settings)
     app.state.storage = Storage(selected_settings)
     return app
 

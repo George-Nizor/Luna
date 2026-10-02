@@ -14,6 +14,8 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "app.js syntax check failed with exit code $LASTEXITCODE." }
   & node --check electron\main.cjs
   if ($LASTEXITCODE -ne 0) { throw "Electron main-process syntax check failed with exit code $LASTEXITCODE." }
+  & node --test tests-electron/*.test.cjs
+  if ($LASTEXITCODE -ne 0) { throw "Desktop file-action checks failed." }
   & node --check electron\preload.cjs
   if ($LASTEXITCODE -ne 0) { throw "Electron preload syntax check failed with exit code $LASTEXITCODE." }
 } finally {

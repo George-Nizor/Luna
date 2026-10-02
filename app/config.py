@@ -7,8 +7,9 @@ dictionary and imports the selected inference engine only in the child.
 
 from __future__ import annotations
 
+import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -41,7 +42,7 @@ class Settings:
     qwen_best_path: Path | None = None
     default_quality: str = "fast"
     worker_idle_seconds: int = 300
-    generation_timeout_seconds: int = 900
+    generation_timeout_seconds: int = 3600
     app_idle_shutdown_seconds: int = 1200
     browser_heartbeat_seconds: int = 20
     max_text_characters: int = 5000
@@ -51,10 +52,11 @@ class Settings:
     max_reference_file_mb: int = 25
     min_reference_seconds: float = 1.0
     max_reference_seconds: float = 60.0
-    output_history_limit: int = 30
+    output_history_limit: int = 0
     log_level: str = "INFO"
     data_directory: Path = Path("data")
     output_directory: Path | None = None
+    output_history_directories: list[str] = field(default_factory=list)
     fixed_models_directory: Path | None = None
     runtime_directory: Path = Path("runtime")
     log_directory: Path = Path("logs")
@@ -78,7 +80,7 @@ class Settings:
             "QWEN_BEST_MODEL": ("qwen_best_model", str, "Qwen/Qwen3-TTS-12Hz-1.7B-Base"),
             "DEFAULT_QUALITY": ("default_quality", str, "fast"),
             "WORKER_IDLE_SECONDS": ("worker_idle_seconds", int, 300),
-            "GENERATION_TIMEOUT_SECONDS": ("generation_timeout_seconds", int, 900),
+            "GENERATION_TIMEOUT_SECONDS": ("generation_timeout_seconds", int, 3600),
             "APP_IDLE_SHUTDOWN_SECONDS": ("app_idle_shutdown_seconds", int, 1200),
             "BROWSER_HEARTBEAT_SECONDS": ("browser_heartbeat_seconds", int, 20),
             "MAX_TEXT_CHARACTERS": ("max_text_characters", int, 5000),
@@ -88,7 +90,7 @@ class Settings:
             "MAX_REFERENCE_FILE_MB": ("max_reference_file_mb", int, 25),
             "MIN_REFERENCE_SECONDS": ("min_reference_seconds", float, 1.0),
             "MAX_REFERENCE_SECONDS": ("max_reference_seconds", float, 60.0),
-            "OUTPUT_HISTORY_LIMIT": ("output_history_limit", int, 30),
+            "OUTPUT_HISTORY_LIMIT": ("output_history_limit", int, 0),
             "LOG_LEVEL": ("log_level", str, "INFO"),
             "OFFLINE_MODE": ("offline_mode", bool, False),
             "MAX_NEW_TOKENS": ("max_new_tokens", int, 2048),
@@ -123,6 +125,7 @@ class Settings:
             path = Path(raw_path)
             values[field_name] = (path if path.is_absolute() else root / path).resolve()
 
+        values["output_history_directories"] = json.loads(os.getenv("OUTPUT_HISTORY_DIRECTORIES", "[]"))
         settings = cls(**values)
         settings.validate()
         return settings
@@ -140,6 +143,10 @@ class Settings:
             raise ValueError("TEXT_CHUNK_TARGET_CHARACTERS cannot exceed TEXT_CHUNK_MAX_CHARACTERS")
         if self.max_new_tokens <= 0:
             raise ValueError("MAX_NEW_TOKENS must be positive")
+        if self.max_text_characters <= 0 or self.output_history_limit < 0:
+            raise ValueError("Text limit must be positive and history limit cannot be negative")
+        if not isinstance(self.output_history_directories, list) or any(not isinstance(value, str) or not Path(value).is_absolute() for value in self.output_history_directories):
+            raise ValueError("Output history directories must be absolute paths")
 
     @property
     def profiles_directory(self) -> Path:
@@ -148,6 +155,10 @@ class Settings:
     @property
     def outputs_directory(self) -> Path:
         return self.output_directory or self.data_directory / "outputs"
+
+    @property
+    def output_roots(self) -> tuple[Path, ...]:
+        return tuple(dict.fromkeys([self.outputs_directory, *(Path(value) for value in self.output_history_directories)]))
 
     @property
     def temp_directory(self) -> Path:
@@ -165,6 +176,10 @@ class Settings:
     def models_directory(self) -> Path:
         return self.fixed_models_directory or self.data_directory / "models"
 
+    @property
+    def model_packs_directory(self) -> Path:
+        return self.data_directory / "model-packs"
+
     def ensure_directories(self) -> None:
         for path in (
             self.data_directory,
@@ -174,6 +189,7 @@ class Settings:
             self.model_cache_directory,
             self.model_downloads_directory,
             self.models_directory,
+            self.model_packs_directory,
             self.runtime_directory,
             self.log_directory,
         ):

@@ -1,8 +1,8 @@
 const token = document.querySelector('meta[name="local-session-token"]').content;
 const languages = ["Auto", "English", "Chinese", "Japanese", "Korean", "German", "French", "Russian", "Portuguese", "Spanish", "Italian"];
 const voices = {
-  david: { short: "DAVID", label: "DAVID ATTENBOROUGH", model: "XTTS / FIXED BEST", fixedQuality: "best" },
-  egirl: { short: "E-GIRL", label: "E-GIRL", model: "RVC / FAST OR BEST", fixedQuality: null },
+  david: { short: "DAVID", label: "DAVID ATTENBOROUGH", model: "XTTS / ORIGINAL", fixedQuality: "best" },
+  egirl: { short: "E-GIRL", label: "E-GIRL", model: "RVC / FAST OR HIGH", fixedQuality: null },
 };
 const $ = (id) => document.getElementById(id);
 let profiles = [];
@@ -15,6 +15,16 @@ let historyExpanded = false;
 let toastTimer = null;
 let messageTimer = null;
 let lastFocusedElement = null;
+let catalog = { voices: [], packs: [] };
+let catalogSignature = "";
+let policy = { max_text_characters: 0, chunk_max_characters: 1 };
+let policyReady = false;
+let policyRequest = 0;
+let preferencesReady = false;
+let historyOffset = 0;
+let historyRequest = 0;
+let historyOutputs = [];
+let historySearchTimer = null;
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 const INTERNAL_SIZE = 480;
@@ -112,23 +122,27 @@ function setLanguage(value) {
   $("settings-language").value = language;
   $("profile-language").value = language;
   $("language-setting-value").textContent = language.toUpperCase();
+  refreshPolicy(); rememberPreferences();
   document.querySelectorAll("#language-menu .menu-option").forEach((option) => { const active = option.dataset.language === language; option.classList.toggle("selected", active); option.setAttribute("aria-selected", active ? "true" : "false"); });
 }
 
 function setQuality(value) {
   const fixedQuality = voiceDetails()?.fixedQuality;
   selectedQuality = fixedQuality || (value === "best" ? "best" : "fast");
+  $("settings-quality").querySelector('option[value="best"]').textContent = fixedQuality ? "ORIGINAL" : "HIGH";
   $("settings-quality").value = selectedQuality;
-  $("quality-setting-value").textContent = selectedQuality.toUpperCase();
+  $("quality-setting-value").textContent = fixedQuality ? "ORIGINAL" : selectedQuality === "best" ? "HIGH" : "FAST";
   $("quality-trigger").disabled = Boolean(fixedQuality);
   $("quality-trigger").setAttribute("aria-disabled", fixedQuality ? "true" : "false");
-  $("quality-trigger").title = fixedQuality ? "This repository provides one XTTS model; its configured best path is used." : "Select the Qwen source engine quality.";
+  $("quality-trigger").title = fixedQuality ? "This voice provides one original XTTS checkpoint." : "Fast uses 0.6B; High uses 1.7B.";
   $("settings-quality").disabled = Boolean(fixedQuality);
+  refreshPolicy(); rememberPreferences();
   document.querySelectorAll("#quality-menu .menu-option").forEach((option) => { const active = option.dataset.quality === selectedQuality; option.classList.toggle("selected", active); option.setAttribute("aria-selected", active ? "true" : "false"); });
 }
 
 function setVoiceModel(value) {
-  const voice = voiceDetails(value) ? value : "david";
+  const voice = value && voiceDetails(value) ? value : $("voice-model-select").options[0]?.value;
+  if (!voice) return;
   const detail = voiceDetails(voice);
   $("voice-model-select").value = voice;
   $("voice-setting-value").textContent = detail.short;
@@ -137,19 +151,28 @@ function setVoiceModel(value) {
   const profile = selectedVoiceProfile();
   if (profile) $("profile-select").value = profile.id;
   $("profile-summary").textContent = profile ? `USING ${profile.name.toUpperCase()}` : "FIXED VOICE / NO PROFILE";
-  setQuality(selectedQuality);
-  updateGenerateState();
+  const available = (catalog.voices || []).find((item) => item.id === voice)?.qualities || [];
+  setQuality(!detail.fixedQuality && available.length && !available.includes(selectedQuality) ? available[0] : selectedQuality);
+  rememberPreferences(); updateGenerateState();
 }
 
 function updateGenerateState() {
-  const needsProfile = selectedVoice().startsWith("profile:");
-  $("generate-button").disabled = generationActive || shuttingDown || (needsProfile && !selectedVoiceProfile()) || !$("generation-text").value.trim();
+  const text = $("generation-text").value;
+  const ready = policyReady && voiceIsReady();
+  $("generate-button").disabled = generationActive || shuttingDown || !ready || !text.trim() || text.length > policy.max_text_characters || !$("generation-seed").checkValidity() || (policy.supports_sampling && !$("generation-temperature").checkValidity());
+  $("generate-button").title = !ready ? "Get this voice and quality in the voice library" : "Generate voice";
+  $("choose-output-directory").disabled = generationActive;
+  $("unload-button").disabled = generationActive;
 }
 
 function updateTextMetrics() {
   const length = $("generation-text").value.length;
-  $("char-counter").textContent = `${length} / 5000`;
-  $("segment-counter").textContent = `${length ? Math.max(1, Math.ceil(length / 350)) : 0} segments`;
+  const maximum = policy.max_text_characters;
+  $("char-counter").textContent = policyReady ? length + " / " + maximum + " characters" : "Loading voice limits…";
+  $("char-counter").classList.toggle("over-limit", policyReady && length > maximum);
+  $("segment-counter").textContent = policyReady ? "Automatic segments up to " + policy.chunk_max_characters + " characters" : "";
+  $("text-limit-help").textContent = policyReady && length > maximum ? "Reduce the text by " + (length - maximum) + " characters to generate." :
+    "Long text is split safely for this model, then joined into one WAV.";
   updateGenerateState();
 }
 
@@ -263,13 +286,27 @@ function readSignal() { if (analyser) { analyser.getByteFrequencyData(frequencyD
 function renderProfiles() {
   const selected = $("profile-select").value;
   const activeVoice = selectedVoice();
-  $("profile-select").innerHTML = `<option value="">NO PROFILE SELECTED</option>${profiles.map((profile) => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name.toUpperCase())}</option>`).join("")}`;
+  const enabled = (catalog.voices || []).filter((voice) => voice.enabled);
+  for (const item of catalog.voices || []) {
+    voices[item.id] = { short: item.label.toUpperCase(), label: item.label.toUpperCase(),
+      model: item.description, fixedQuality: item.id === "david" ? "best" : null, ...item };
+  }
+  $("profile-select").innerHTML = '<option value="">NO PROFILE SELECTED</option>' + profiles.map((profile) =>
+    `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.name.toUpperCase())}</option>`).join("");
   $("profile-select").value = profiles.some((profile) => profile.id === selected) ? selected : (profiles[0]?.id || "");
-  const profileMenu = profiles.map((profile) => `<button class="menu-option" type="button" role="option" data-model="profile:${escapeHtml(profile.id)}" aria-selected="false">${escapeHtml(profile.name.toUpperCase())}</button>`).join("");
-  $("voice-menu").innerHTML = `<button class="menu-option" type="button" role="option" data-model="david" aria-selected="false">DAVID ATTENBOROUGH</button><button class="menu-option" type="button" role="option" data-model="egirl" aria-selected="false">E-GIRL</button>${profileMenu}`;
-  $("voice-model-select").innerHTML = `<option value="david">David Attenborough — XTTS</option><option value="egirl">E-Girl — RVC</option>${profiles.map((profile) => `<option value="profile:${escapeHtml(profile.id)}">${escapeHtml(profile.name)} — Qwen clone</option>`).join("")}`;
-  document.querySelector(".settings-voice-list").innerHTML = `<button class="voice-option" type="button" data-model="david" aria-pressed="false">DAVID ATTENBOROUGH <small>XTTS / FIXED BEST</small></button><button class="voice-option" type="button" data-model="egirl" aria-pressed="false">E-GIRL <small>RVC / FAST OR BEST</small></button>${profiles.map((profile) => `<button class="voice-option" type="button" data-model="profile:${escapeHtml(profile.id)}" aria-pressed="false">${escapeHtml(profile.name.toUpperCase())} <small>QWEN CLONE / FAST OR BEST</small></button>`).join("")}`;
-  renderProfileDetails(); setVoiceModel(voiceDetails(activeVoice) ? activeVoice : "david");
+  const choices = [...enabled.map((voice) => ({ id: voice.id, label: voice.label,
+    description: voice.description, ready: voice.qualities.length > 0 })),
+    ...profiles.map((profile) => ({ id: "profile:" + profile.id, label: profile.name,
+      description: "Qwen voice clone", ready: true }))];
+  $("voice-menu").innerHTML = choices.map((voice) =>
+    `<button class="menu-option" type="button" role="option" data-model="${escapeHtml(voice.id)}" aria-selected="false">${escapeHtml(voice.label.toUpperCase())}${voice.ready ? "" : " · GET MODEL"}</button>`).join("");
+  $("voice-model-select").innerHTML = choices.map((voice) =>
+    `<option value="${escapeHtml(voice.id)}">${escapeHtml(voice.label)}</option>`).join("");
+  document.querySelector(".settings-voice-list").innerHTML = choices.map((voice) =>
+    `<button class="voice-option" type="button" data-model="${escapeHtml(voice.id)}" aria-pressed="false">${escapeHtml(voice.label.toUpperCase())}<small>${voice.ready ? "" : "DOWNLOAD REQUIRED · "}${escapeHtml(voice.description)}</small></button>`).join("");
+  renderProfileDetails();
+  const fallback = choices.find((voice) => voice.ready)?.id || choices.find((voice) => voice.id.startsWith("qwen:"))?.id || choices[0]?.id;
+  setVoiceModel(preferencesReady && choices.some((voice) => voice.id === activeVoice) ? activeVoice : fallback);
 }
 function renderProfileDetails() {
   const profile = selectedProfile(); const target = $("profile-details");
@@ -279,32 +316,100 @@ function renderProfileDetails() {
 async function loadProfiles() { profiles = (await api("/api/profiles")).profiles || []; renderProfiles(); }
 
 function historyModelLabel(item) {
-  if (item.model_id === "david") return "DAVID · XTTS / FIXED BEST";
-  if (item.model_id === "egirl-best") return "E-GIRL · RVC / QWEN BEST 1.7B";
-  if (item.model_id === "egirl-fast" || item.model_id === "egirl") return "E-GIRL · RVC / QWEN FAST 0.6B";
-  if (item.model_id === "Qwen/Qwen3-TTS-12Hz-1.7B-Base") return "VOICE PROFILE · QWEN BEST 1.7B";
-  if (item.model_id === "Qwen/Qwen3-TTS-12Hz-0.6B-Base") return "VOICE PROFILE · QWEN FAST 0.6B";
-  return String(item.model_id || "UNKNOWN MODEL").toUpperCase();
+  const quality = item.quality === "best" ? "HIGH" : "FAST";
+  if (item.model_id === "david") return "XTTS · ORIGINAL";
+  if (String(item.model_id).startsWith("egirl")) return "RVC · " + quality;
+  return String(item.model_id || "UNKNOWN MODEL").split("/").pop() + " · " + quality;
 }
 
 function setHistoryExpanded(expanded) {
   historyExpanded = Boolean(expanded);
-  const list = $("main-history-list");
-  list.hidden = !historyExpanded;
+  $("main-history-list").hidden = !historyExpanded;
+  $("history-controls").hidden = !historyExpanded;
+  $("history-pagination").hidden = !historyExpanded;
   $("history-toggle").setAttribute("aria-expanded", historyExpanded ? "true" : "false");
   $("history-arrow").classList.toggle("is-open", historyExpanded);
 }
 
 async function loadHistory() {
-  const outputs = (await api("/api/outputs")).outputs || []; const list = $("main-history-list");
-  $("history-count").textContent = `${outputs.length} OUTPUT${outputs.length === 1 ? "" : "S"}`;
-  $("settings-history-count").textContent = `${outputs.length} OUTPUT${outputs.length === 1 ? "" : "S"}`;
-  if (!outputs.length) { list.innerHTML = '<div class="empty-history">NO OUTPUTS</div>'; return; }
-  list.innerHTML = outputs.map((item) => `<div class="history-row"><button class="history-icon history-play" type="button" data-id="${escapeHtml(item.id)}" data-label="${escapeHtml(item.profile_name)}" data-model="${escapeHtml(item.model_id)}" data-duration="${escapeHtml(item.duration_seconds)}" data-chunks="${escapeHtml(item.chunk_count)}" aria-label="Play ${escapeHtml(item.profile_name)}">▶</button><div class="history-main"><strong>${escapeHtml(item.profile_name.toUpperCase())}</strong><span>${escapeHtml(historyModelLabel(item))} · ${escapeHtml(formatDuration(item.duration_seconds))}</span><small>${escapeHtml(formatDate(item.created_at))}</small></div><a class="text-action" href="${authenticatedUrl(outputUrl(item.id, "download"))}" download aria-label="Download ${escapeHtml(item.profile_name)}">↓</a><button class="text-action delete-output" type="button" data-id="${escapeHtml(item.id)}" aria-label="Delete ${escapeHtml(item.profile_name)}">×</button></div>`).join("");
-  list.querySelectorAll(".history-play").forEach((button) => button.addEventListener("click", async () => { await playOutput({ id: button.dataset.id, profile_name: button.dataset.label, model_id: button.dataset.model, duration_seconds: Number(button.dataset.duration), chunk_count: Number(button.dataset.chunks) }); }));
-  list.querySelectorAll(".delete-output").forEach((button) => button.addEventListener("click", async () => { try { await api(`/api/outputs/${encodeURIComponent(button.dataset.id)}`, { method: "DELETE" }); if (currentOutput?.id === button.dataset.id) clearLatestOutput(); await loadHistory(); showToast("OUTPUT DELETED"); } catch (error) { showToast(error.message, true); } }));
+  const request = ++historyRequest;
+  const params = new URLSearchParams({ offset: String(historyOffset), limit: "50",
+    q: $("history-search").value, quality: $("history-quality").value, sort: $("history-sort").value });
+  const data = await api("/api/outputs?" + params);
+  if (request !== historyRequest) return;
+  if (historyOffset && historyOffset >= data.total) { historyOffset = 0; return loadHistory(); }
+  historyOutputs = data.outputs || [];
+  $("history-count").textContent = `${data.stats.count} OUTPUTS · ${formatBytes(data.stats.size_bytes)}`;
+  $("settings-history-count").textContent = `${data.stats.count} OUTPUTS`;
+  $("history-retention").textContent = data.history_limit ? `Automatic retention: ${data.history_limit} outputs` : "All generations kept until you delete them";
+  $("history-page").textContent = data.total ? `${historyOffset + 1}–${Math.min(historyOffset + 50, data.total)} of ${data.total}` : "0 outputs";
+  $("history-previous").disabled = historyOffset === 0;
+  $("history-next").disabled = historyOffset + 50 >= data.total;
+  const list = $("main-history-list");
+  list.innerHTML = historyOutputs.length ? historyOutputs.map((item) =>
+    `<article class="history-row" data-output-id="${escapeHtml(item.id)}">
+      <button class="history-icon" data-action="play" type="button" ${item.audio_available ? "" : "disabled"} aria-label="Play ${escapeHtml(item.profile_name)}">▶</button>
+      <div class="history-main"><strong>${escapeHtml(item.profile_name)}</strong>
+        <span>${escapeHtml(historyModelLabel(item))} · ${formatDuration(item.duration_seconds)} · ${formatBytes(item.size_bytes)} · ${escapeHtml(formatDate(item.created_at))}</span>
+        <p class="history-text">${escapeHtml(item.text || "Text was not saved by this older Luna version.")}</p>
+        <details><summary>Generation details</summary><dl class="generation-details">
+          <dt>Model</dt><dd>${escapeHtml(item.model_id)}</dd>
+          <dt>Language</dt><dd>${escapeHtml(item.language)}</dd>
+          <dt>Seed</dt><dd>${item.seed ?? "Not recorded"}</dd>
+          <dt>Segments / characters</dt><dd>${item.chunk_count} / ${item.text_character_count}</dd>
+          <dt>Sample rate</dt><dd>${item.sample_rate ? item.sample_rate + " Hz" : "Not recorded"}</dd>
+          <dt>Generation time</dt><dd>${item.generation_seconds == null ? "Not recorded" : formatDuration(item.generation_seconds)}</dd>
+          <dt>Style</dt><dd>${escapeHtml(item.instruction || "Default")}</dd>
+          <dt>Sampling temperature</dt><dd>${item.parameters?.temperature ?? "Original preset"}</dd>
+          <dt>Output ID</dt><dd>${escapeHtml(item.id)}</dd>
+        </dl><pre class="history-full-text">${escapeHtml(item.text || "")}</pre></details>
+      </div><div class="history-actions">
+        <button class="text-action" data-action="export" type="button" ${item.audio_available ? "" : "disabled"}>EXPORT WAV</button>
+        <a class="text-action" href="${authenticatedUrl(outputUrl(item.id, "metadata"))}" download>METADATA</a>
+        <button class="text-action" data-action="reuse" type="button" ${item.text == null ? "disabled title=\"This older output did not save its text\"" : ""}>REUSE TEXT</button>
+        ${window.voiceStudio?.revealOutput ? '<button class="text-action" data-action="reveal" type="button"' + (item.audio_available ? "" : " disabled") + '>REVEAL</button>' : ""}
+        <button class="text-action danger" data-action="delete" type="button">DELETE</button>
+      </div>${item.audio_available ? "" : '<small class="missing-audio">Audio file is missing. Metadata remains available.</small>'}
+    </article>`).join("") : '<div class="empty-history">NO MATCHING OUTPUTS</div>';
 }
 
+async function exportOutput(item) {
+  if (window.voiceStudio?.exportOutput) {
+    await window.voiceStudio.exportOutput(item.id);
+  } else {
+    const link = document.createElement("a"); link.href = authenticatedUrl(outputUrl(item.id, "download")); link.download = ""; link.click();
+  }
+}
+
+function reuseOutput(item) {
+  if (item.text == null || generationActive) return;
+  let voice = item.voice;
+  if (!voice) voice = item.profile_id === "fixed:david-attenborough" ? "david" :
+    item.profile_id === "fixed:egirl-rvc" ? "egirl" : "profile";
+  if (voice === "profile") voice = "profile:" + item.profile_id;
+  if ([...$("voice-model-select").options].some((option) => option.value === voice)) setVoiceModel(voice);
+  else showToast("Original voice is unavailable. Choose another voice before generating.", true);
+  setQuality(item.quality); setLanguage(item.language);
+  $("generation-text").value = item.text;
+  $("generation-instruction").value = item.instruction || "";
+  $("generation-seed").value = item.seed ?? "";
+  $("generation-seed").setCustomValidity("");
+  $("generation-temperature").value = item.parameters?.temperature ?? 0.7;
+  updateTextMetrics();
+  $("generation-text").focus();
+  $("generation-text").scrollIntoView({ behavior: reducedMotion.matches ? "auto" : "smooth", block: "center" });
+  showMessage("TEXT AND SETTINGS RESTORED. CHANGE PARAMETERS, THEN GENERATE.");
+}
+
+async function deleteOutput(item) {
+  if (!window.confirm("Delete this generation and its audio file?")) return;
+  const activeOutput = currentOutput?.id === item.id ? currentOutput : null;
+  if (activeOutput) clearLatestOutput();
+  try { await api("/api/outputs/" + encodeURIComponent(item.id), { method: "DELETE" }); }
+  catch (error) { if (activeOutput) setLatestOutput(activeOutput); throw error; }
+  await loadHistory();
+  showToast("OUTPUT DELETED");
+}
 function updatePlaybackTime() {
   const audio = $("result-audio"); $("playback-current").textContent = formatClock(audio.currentTime); $("playback-duration").textContent = formatClock(audio.duration); $("playback-scrubber").value = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0; readSignal();
 }
@@ -316,6 +421,8 @@ function updatePlaybackState() {
 }
 function enableOutputActions(enabled) {
   const active = enabled && !playbackPending;
+  $("reveal-latest-button").disabled = !active; $("reveal-latest-button").hidden = !window.voiceStudio?.revealOutput;
+  $("reuse-latest-button").disabled = !active || currentOutput?.text == null;
   $("playback-play").disabled = !active; $("delete-latest-button").disabled = !active; $("delete-latest-button").classList.toggle("disabled", !active); $("result-download").classList.toggle("disabled", !active); $("result-download").setAttribute("aria-disabled", active ? "false" : "true");
 }
 function setPlaybackPending(pending) {
@@ -331,7 +438,7 @@ function setLatestOutput(output) {
   const audio = $("result-audio"); audio.src = authenticatedUrl(output.audio_url, true); audio.volume = .9; audio.load();
   $("result-download").href = authenticatedUrl(output.download_url); enableOutputActions(true); drawWaveform(); setCoreState("ready");
 }
-function clearLatestOutput() { $("result-audio").pause(); $("result-audio").removeAttribute("src"); currentOutput = null; enableOutputActions(false); drawWaveform(); setCoreState("idle"); }
+function clearLatestOutput() { const audio = $("result-audio"); audio.pause(); audio.removeAttribute("src"); audio.load(); currentOutput = null; enableOutputActions(false); drawWaveform(); setCoreState("idle"); }
 async function playOutput(output) {
   if (!output.audio_url) output.audio_url = outputUrl(output.id);
   if (!output.download_url) output.download_url = outputUrl(output.id, "download");
@@ -340,9 +447,10 @@ async function playOutput(output) {
 }
 
 async function generate() {
+  if ($("generate-button").disabled) return;
   generationActive = true; setPlaybackPending(true); updateGenerateState(); $("generate-button").classList.add("is-active"); $("generation-progress").classList.remove("hidden"); setCoreState("loading");
   try {
-    const selected = selectedVoice(); const profileId = voiceProfileId(selected); const voice = profileId ? "profile" : selected; const result = await api("/api/generate", { method: "POST", body: JSON.stringify({ profile_id: profileId, voice, text: $("generation-text").value, language: $("generation-language").value, quality: selectedQuality }) });
+    const selected = selectedVoice(); const profileId = voiceProfileId(selected); const voice = profileId ? "profile" : selected; const result = await api("/api/generate", { method: "POST", body: JSON.stringify({ profile_id: profileId, voice, text: $("generation-text").value, language: $("generation-language").value, quality: selectedQuality, temperature: policy.supports_sampling ? Number($("generation-temperature").value) : null, instruction: policy.supports_instruction ? $("generation-instruction").value : "", seed: $("generation-seed").value === "" ? null : Number($("generation-seed").value) }) });
     corePulse = 12; setLatestOutput(result); await loadHistory();
   } catch (error) { setCoreState("error"); showToast(error.message, true); showMessage(error.message); window.setTimeout(() => setCoreState("idle"), 1600); } finally { generationActive = false; $("generate-button").classList.remove("is-active"); $("generation-progress").classList.add("hidden"); setPlaybackPending(false); updateGenerateState(); refreshStatus(); }
 }
@@ -353,6 +461,7 @@ async function refreshStatus() {
     const status = await api("/api/status");
     const workerLabels = { ready: "READY", starting: "LOADING", loading_model: "LOADING", generating: "GENERATING", stopping: "UNLOADING", error: "ERROR", stopped: "STOPPED" };
     $("worker-status").textContent = workerLabels[status.worker_status] || "STOPPED"; $("app-status").textContent = status.app_status === "running" ? "RUNNING" : "SHUTTING DOWN"; $("system-gpu-detail").textContent = status.cuda_available === true ? "CUDA AVAILABLE" : status.cuda_available === false ? "CUDA UNAVAILABLE" : "CUDA STATUS UNKNOWN";
+    if (generationActive) setCoreState(status.worker_status === "generating" ? "generating" : "loading");
     if (!generationActive && !["playing", "error"].includes(coreState)) setCoreState(status.worker_status === "ready" ? "ready" : ["starting", "loading_model"].includes(status.worker_status) ? "loading" : "idle");
   } catch (_) { $("app-status").textContent = "OFFLINE"; }
 }
@@ -374,6 +483,15 @@ $("voice-trigger").addEventListener("click", () => toggleMenu("voice-menu", $("v
 $("voice-menu").addEventListener("click", (event) => { const option = event.target.closest(".menu-option"); if (!option) return; setVoiceModel(option.dataset.model); closeMenus(); }); $("quality-menu").querySelectorAll(".menu-option").forEach((option) => option.addEventListener("click", () => { setQuality(option.dataset.quality); closeMenus(); }));
 $("language-menu").innerHTML = languages.map((language) => `<button class="menu-option" type="button" role="option" data-language="${escapeHtml(language)}" aria-selected="false">${escapeHtml(language.toUpperCase())}</button>`).join(""); $("language-menu").querySelectorAll(".menu-option").forEach((option) => option.addEventListener("click", () => { setLanguage(option.dataset.language); closeMenus(); }));
 $("settings-quality").addEventListener("change", (event) => setQuality(event.target.value)); $("settings-language").addEventListener("change", (event) => setLanguage(event.target.value));
+$("generation-text").addEventListener("paste", (event) => {
+  const field = event.currentTarget;
+  const inserted = event.clipboardData?.getData("text/plain") || "";
+  const length = field.value.length - (field.selectionEnd - field.selectionStart) + inserted.length;
+  if (!policyReady || length > policy.max_text_characters) {
+    event.preventDefault();
+    showToast(policyReady ? "Paste exceeds the " + policy.max_text_characters + " character limit. Shorten it before pasting." : "Wait for the voice limits to load.", true);
+  }
+});
 $("generation-text").addEventListener("input", updateTextMetrics); $("generate-button").addEventListener("click", generate);
 document.querySelector(".settings-voice-list").addEventListener("click", (event) => { const option = event.target.closest(".voice-option"); if (option) setVoiceModel(option.dataset.model); });
 $("history-toggle").addEventListener("click", () => setHistoryExpanded(!historyExpanded));
@@ -382,7 +500,10 @@ $("open-history-button").addEventListener("click", () => { closeDialog($("settin
 // Playback and action controls.
 const audio = $("result-audio"); audio.addEventListener("loadedmetadata", updatePlaybackTime); audio.addEventListener("timeupdate", updatePlaybackTime); audio.addEventListener("play", updatePlaybackState); audio.addEventListener("pause", updatePlaybackState); audio.addEventListener("ended", updatePlaybackState);
 $("playback-play").addEventListener("click", async () => { if (!currentOutput) return; if (audio.paused) await playOutput(currentOutput); else audio.pause(); }); $("playback-scrubber").addEventListener("input", (event) => { if (audio.duration) audio.currentTime = Number(event.target.value) / 100 * audio.duration; }); $("playback-waveform").addEventListener("click", (event) => { if (!currentOutput || !audio.duration) return; const rect = event.currentTarget.getBoundingClientRect(); audio.currentTime = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) * audio.duration; });
-$("delete-latest-button").addEventListener("click", async () => { if (!currentOutput?.id) return; try { await api(`/api/outputs/${encodeURIComponent(currentOutput.id)}`, { method: "DELETE" }); clearLatestOutput(); await loadHistory(); showToast("OUTPUT DELETED"); } catch (error) { showToast(error.message, true); } });
+$("delete-latest-button").addEventListener("click", () => currentOutput && deleteOutput(currentOutput).catch((error) => showToast(error.message, true)));
+$("result-download").addEventListener("click", (event) => { if (window.voiceStudio?.exportOutput && currentOutput) { event.preventDefault(); exportOutput(currentOutput).catch((error) => showToast(error.message, true)); } });
+$("reveal-latest-button").addEventListener("click", () => currentOutput && window.voiceStudio?.revealOutput(currentOutput.id).catch((error) => showToast(error.message, true)));
+$("reuse-latest-button").addEventListener("click", () => currentOutput && reuseOutput(currentOutput));
 
 // Settings, profiles, history, worker, and shutdown.
 $("system-menu-button").addEventListener("click", () => openDialog($("settings-dialog"))); $("close-settings").addEventListener("click", () => closeDialog($("settings-dialog"))); $("new-profile-button").addEventListener("click", () => openDialog($("profile-dialog"))); $("close-profile").addEventListener("click", () => closeDialog($("profile-dialog"))); $("cancel-profile").addEventListener("click", () => closeDialog($("profile-dialog"))); $("profile-form").addEventListener("submit", createProfile);
@@ -390,4 +511,147 @@ $("profile-select").addEventListener("change", () => { renderProfileDetails(); c
 $("unload-button").addEventListener("click", async () => { if (generationActive) { showToast("GENERATION ACTIVE", true); return; } setCoreState("unloading"); try { await api("/api/worker/unload", { method: "POST", body: "{}" }); await refreshStatus(); showToast("WORKER UNLOADED"); } catch (error) { showToast(error.message, true); } }); $("shutdown-button").addEventListener("click", () => openDialog($("shutdown-dialog"))); $("cancel-shutdown").addEventListener("click", () => closeDialog($("shutdown-dialog"))); $("confirm-shutdown").addEventListener("click", async (event) => { event.preventDefault(); shuttingDown = true; try { if (window.voiceStudio) await window.voiceStudio.shutdown(); else await api("/api/app/shutdown", { method: "POST", body: "{}" }); closeDialog($("shutdown-dialog")); closeDialog($("settings-dialog")); shutdownPage(); } catch (error) { shuttingDown = false; closeDialog($("shutdown-dialog")); showToast(error.message, true); } });
 document.addEventListener("click", (event) => { if (!event.target.closest(".setting-wrap")) closeMenus(); }); document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeMenus(); if ($("profile-dialog").open) closeDialog($("profile-dialog")); else if ($("shutdown-dialog").open) closeDialog($("shutdown-dialog")); else if ($("settings-dialog").open) closeDialog($("settings-dialog")); } }); document.addEventListener("visibilitychange", () => { if (document.hidden) { cancelAnimationFrame(coreFrameId); coreFrameId = 0; } else if (coreLoop) coreFrameId = requestAnimationFrame(renderCore); }); reducedMotion.addEventListener?.("change", () => { if (reducedMotion.matches) settleCore(); });
 
-fillLanguages(); setQuality("best"); setVoiceModel("david"); setHistoryExpanded(false); updateTextMetrics(); drawWaveform(); setPlaybackPending(false); enableOutputActions(false); Promise.all([loadProfiles(), loadHistory(), refreshStatus(), initializeDesktopSettings()]).catch((error) => showToast(error.message, true)); heartbeat(); setInterval(heartbeat, 20000); setInterval(refreshStatus, 5000);
+function formatBytes(bytes) {
+  return Number(bytes || 0) >= 1e9 ? (bytes / 1e9).toFixed(2) + " GB" : Number(bytes || 0) >= 1e6 ?
+    (bytes / 1e6).toFixed(1) + " MB" : (Number(bytes || 0) / 1e3).toFixed(1) + " KB";
+}
+
+async function refreshPolicy() {
+  const sequence = ++policyRequest;
+  policyReady = false; updateGenerateState();
+  const voice = selectedVoice()?.startsWith("profile:") ? "profile" : selectedVoice();
+  if (!voice) return;
+  try {
+    const next = await api("/api/generation-policy?" + new URLSearchParams({
+      voice, quality: selectedQuality, language: $("generation-language").value }));
+    if (sequence !== policyRequest) return;
+    policy = next; policyReady = true;
+    $("generation-text").maxLength = policy.max_text_characters;
+    $("generation-instruction").disabled = !policy.supports_instruction;
+    $("generation-temperature").disabled = !policy.supports_sampling;
+    $("style-help").textContent = policy.supports_instruction ? "Describe tone, pacing, or emotion." : "Style directions are available for Qwen voices in High mode.";
+    const detail = voiceDetails();
+    $("model-warning").textContent = voice === "david" ? "Original XTTS checkpoint. This voice has one model; there is no High checkpoint." :
+      voice === "egirl" ? "Qwen source plus RVC conversion. The conversion can affect clarity; compare with direct Qwen voices." :
+      selectedQuality === "best" ? "High uses Qwen 1.7B. More GPU memory and generation time." : "Fast uses Qwen 0.6B. Lower memory use and faster generation.";
+    if (!voiceIsReady()) $("model-warning").textContent += " This quality needs a download. Open Get / Manage Voices.";
+    if (detail?.native_language && detail.native_language !== $("generation-language").value && $("generation-language").value !== "Auto")
+      $("model-warning").textContent += " Best suited to " + detail.native_language + ".";
+    updateTextMetrics();
+  } catch (error) { if (sequence === policyRequest) { policyReady = false; showToast(error.message, true); } }
+}
+
+function voiceIsReady() {
+  const voice = selectedVoice();
+  if (voice?.startsWith("profile:")) return (catalog.packs || []).some((pack) => pack.kind === "clone" && pack.quality === selectedQuality && pack.installed) || catalog.fake;
+  return Boolean((catalog.voices || []).find((item) => item.id === voice)?.qualities.includes(selectedQuality));
+}
+
+function rememberPreferences() {
+  if (!preferencesReady) return;
+  localStorage.setItem("luna.preferences", JSON.stringify({
+    voice: selectedVoice(), quality: selectedQuality, language: $("generation-language").value }));
+}
+
+function renderVoiceLibrary() {
+  const packs = catalog.packs || [];
+  const job = catalog.download;
+  $("model-free-space").textContent = formatBytes(catalog.free_bytes) + " free · " + catalog.model_directory;
+  $("catalog-voice-list").innerHTML = (catalog.voices || []).map((voice) =>
+    `<label class="catalog-voice"><input type="checkbox" data-voice-id="${escapeHtml(voice.id)}" ${voice.enabled ? "checked" : ""}>
+      <span><strong>${escapeHtml(voice.label)}</strong><small>${escapeHtml(voice.native_language)} · ${escapeHtml(voice.description)}</small></span>
+      <small>${voice.qualities.length ? "READY" : voice.legacy ? "LEGACY ASSETS REQUIRED" : "GET A PACK BELOW"}</small></label>`).join("");
+  $("model-pack-list").innerHTML = packs.map((pack) => {
+    const active = job?.pack_id === pack.id && ["downloading", "verifying"].includes(job.status);
+    return `<article class="model-pack"><div><strong>${pack.kind === "voices" ? "NINE QWEN VOICES" : "VOICE CLONING"} · ${pack.quality === "best" ? "HIGH / 1.7B" : "FAST / 0.6B"}</strong>
+      <p>${formatBytes(pack.size_bytes)} download · ${pack.license} · ${pack.installed ? "INSTALLED" : "OPTIONAL"}</p>
+      <a href="${escapeHtml(pack.source_url)}" target="_blank" rel="noopener">Official source and pinned revision ↗</a></div>
+      <div class="pack-actions">${pack.installed ? pack.managed ? '<button class="text-action" type="button" data-remove-pack="' + pack.id + '">REMOVE</button>' : '<span>Included locally</span>' :
+      '<button class="text-action bright" type="button" data-download-pack="' + pack.id + '"' + (active || (job && ["downloading", "verifying"].includes(job.status)) ? " disabled" : "") + ">" + (active ? "DOWNLOADING" : job?.pack_id === pack.id && ["failed", "paused"].includes(job.status) ? "RESUME" : "DOWNLOAD") + "</button>"}</div></article>`;
+  }).join("");
+  updateModelDownloadProgress();
+}
+
+function updateModelDownloadProgress() {
+  const job = catalog.download;
+  $("model-download-progress").hidden = !job;
+  if (job) {
+    $("model-download-label").textContent = `${job.status.toUpperCase()} · ${formatBytes(job.downloaded_bytes)} / ${formatBytes(job.total_bytes)} · ${job.filename || job.pack_id}`;
+    $("model-download-meter").value = job.total_bytes ? job.downloaded_bytes / job.total_bytes * 100 : 0;
+    $("model-download-error").textContent = job.error || "";
+    $("pause-model-download").hidden = !["downloading", "verifying"].includes(job.status);
+  }
+}
+
+async function refreshCatalog() {
+  const next = await api("/api/models");
+  const signature = JSON.stringify([next.voices, next.packs.map((pack) => [pack.id, pack.installed])]);
+  const changed = signature !== catalogSignature;
+  const downloadChanged = next.download?.status !== catalog.download?.status || next.download?.pack_id !== catalog.download?.pack_id;
+  catalog = next;
+  if (changed) { catalogSignature = signature; renderProfiles(); }
+  if (changed || downloadChanged) renderVoiceLibrary();
+  else updateModelDownloadProgress();
+  updateGenerateState();
+}
+
+async function initializeStudio() {
+  await Promise.all([loadProfiles(), refreshCatalog(), loadHistory(), initializeDesktopSettings()]);
+  let preferences = {};
+  try { preferences = JSON.parse(localStorage.getItem("luna.preferences") || "{}"); } catch (_) {}
+  if ([...$("voice-model-select").options].some((option) => option.value === preferences.voice)) setVoiceModel(preferences.voice);
+  if (preferences.quality || catalog.default_quality) setQuality(preferences.quality || catalog.default_quality);
+  if (preferences.language) setLanguage(preferences.language);
+  preferencesReady = true;
+  await refreshPolicy(); await refreshStatus();
+  if (!(catalog.voices || []).some((voice) => voice.enabled && voice.qualities.length)) openDialog($("voices-dialog"));
+}
+
+$("open-voices-button").addEventListener("click", () => openDialog($("voices-dialog")));
+$("settings-voices-button").addEventListener("click", () => { closeDialog($("settings-dialog")); openDialog($("voices-dialog")); });
+$("close-voices").addEventListener("click", () => closeDialog($("voices-dialog")));
+$("catalog-voice-list").addEventListener("change", async () => {
+  const selected = [...$("catalog-voice-list").querySelectorAll("input:checked")].map((input) => input.dataset.voiceId);
+  try { await api("/api/voices/selection", { method: "POST", body: JSON.stringify({ voices: selected }) }); await refreshCatalog(); }
+  catch (error) { showToast(error.message, true); renderVoiceLibrary(); }
+});
+$("model-pack-list").addEventListener("click", async (event) => {
+  const download = event.target.closest("[data-download-pack]");
+  const remove = event.target.closest("[data-remove-pack]");
+  try {
+    if (download) await api("/api/models/download", { method: "POST", body: JSON.stringify({ pack_id: download.dataset.downloadPack }) });
+    if (remove && window.confirm("Remove this shared model pack? Its voices will need downloading again for this quality.")) await api("/api/models/" + encodeURIComponent(remove.dataset.removePack), { method: "DELETE" });
+    await refreshCatalog();
+  } catch (error) { showToast(error.message, true); }
+});
+$("pause-model-download").addEventListener("click", async () => { await api("/api/models/download/pause", { method: "POST", body: "{}" }); await refreshCatalog(); });
+$("main-history-list").addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-action]");
+  if (!button || button.disabled) return;
+  const row = button.closest("[data-output-id]");
+  const item = historyOutputs.find((output) => output.id === row?.dataset.outputId);
+  if (!item) return;
+  try {
+    if (button.dataset.action === "play") await playOutput(item);
+    if (button.dataset.action === "export") await exportOutput(item);
+    if (button.dataset.action === "reuse") reuseOutput(item);
+    if (button.dataset.action === "reveal") await window.voiceStudio.revealOutput(item.id);
+    if (button.dataset.action === "delete") await deleteOutput(item);
+  } catch (error) { showToast(error.message, true); }
+});
+$("history-search").addEventListener("input", () => { clearTimeout(historySearchTimer); historySearchTimer = setTimeout(() => { historyOffset = 0; loadHistory().catch((error) => showToast(error.message, true)); }, 250); });
+for (const id of ["history-quality", "history-sort"]) $(id).addEventListener("change", () => { historyOffset = 0; loadHistory().catch((error) => showToast(error.message, true)); });
+$("history-previous").addEventListener("click", () => { historyOffset = Math.max(0, historyOffset - 50); loadHistory(); });
+$("history-next").addEventListener("click", () => { historyOffset += 50; loadHistory(); });
+$("generation-temperature").addEventListener("input", updateGenerateState);
+$("generation-seed").addEventListener("input", () => {
+  const number = Number($("generation-seed").value);
+  const valid = $("generation-seed").value === "" || (Number.isInteger(number) && number >= 0 && number <= 4294967295);
+  $("generation-seed").setCustomValidity(valid ? "" : "Use a whole number between 0 and 4294967295.");
+  updateGenerateState();
+});
+
+fillLanguages(); setHistoryExpanded(false); updateTextMetrics(); drawWaveform(); setPlaybackPending(false); enableOutputActions(false);
+initializeStudio().catch((error) => showToast(error.message, true)); heartbeat();
+setInterval(heartbeat, 20000);
+setInterval(() => { refreshStatus(); refreshCatalog().catch(() => {}); }, 5000);

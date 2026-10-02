@@ -57,7 +57,13 @@ class Storage:
 
     def output_dir(self, output_id: str, *, must_exist: bool = False) -> Path:
         validate_output_id(output_id)
-        return safe_child_path(self.settings.outputs_directory, output_id, must_exist=must_exist)
+        if must_exist:
+            for root in self.settings.output_roots:
+                candidate = safe_child_path(root, output_id)
+                if candidate.is_dir():
+                    return candidate
+            raise FileNotFoundError("output not found")
+        return safe_child_path(self.settings.outputs_directory, output_id)
 
     def create_profile(
         self,
@@ -140,34 +146,35 @@ class Storage:
         self._enforce_output_retention()
 
     def _enforce_output_retention(self) -> None:
-        entries: list[tuple[datetime, Path]] = []
-        for directory in self.settings.outputs_directory.iterdir():
-            if not directory.is_dir() or directory.is_symlink():
-                continue
-            try:
-                metadata = OutputMetadata.model_validate(self._read_json(directory / "metadata.json"))
-                entries.append((metadata.created_at, directory))
-            except (OSError, ValueError):
-                continue
-        entries.sort(key=lambda item: item[0], reverse=True)
-        for _, directory in entries[self.settings.output_history_limit :]:
-            shutil.rmtree(directory, ignore_errors=True)
+        if self.settings.output_history_limit == 0:
+            return
+        for output in self.list_outputs()[self.settings.output_history_limit:]:
+            self.delete_output(output.id)
 
     def list_outputs(self) -> list[OutputMetadata]:
         outputs: list[OutputMetadata] = []
-        for directory in self.settings.outputs_directory.iterdir():
-            if not directory.is_dir() or directory.is_symlink():
+        seen: set[str] = set()
+        for root in self.settings.output_roots:
+            if not root.is_dir():
                 continue
-            try:
-                outputs.append(OutputMetadata.model_validate(self._read_json(directory / "metadata.json")))
-            except (OSError, ValueError):
-                continue
+            for directory in root.iterdir():
+                if not directory.is_dir() or directory.is_symlink() or directory.name in seen:
+                    continue
+                try:
+                    output = self.get_output(directory.name)
+                    outputs.append(output)
+                    seen.add(output.id)
+                except (OSError, ValueError):
+                    continue
         return sorted(outputs, key=lambda item: item.created_at, reverse=True)
 
     def get_output(self, output_id: str) -> OutputMetadata:
         directory = self.output_dir(output_id, must_exist=True)
         try:
-            return OutputMetadata.model_validate(self._read_json(directory / "metadata.json"))
+            metadata = OutputMetadata.model_validate(self._read_json(safe_child_path(directory, "metadata.json", must_exist=True)))
+            if metadata.id != output_id:
+                raise ValueError("output metadata ID does not match its directory")
+            return metadata
         except FileNotFoundError as exc:
             raise FileNotFoundError("output not found") from exc
 
@@ -178,6 +185,10 @@ class Storage:
         directory = self.output_dir(output_id, must_exist=True)
         if directory.is_symlink():
             raise ValueError("output symlinks are not allowed")
+        # Windows may refuse to remove audio held open by another application.
+        # Leave its metadata intact when that happens, so the recording stays
+        # discoverable and the user can retry instead of losing its history.
+        safe_child_path(directory, "output.wav").unlink(missing_ok=True)
         shutil.rmtree(directory)
 
     def download_name(self, metadata: OutputMetadata) -> str:

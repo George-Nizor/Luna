@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "id": "luna",
   "name": "Luna",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "description": "Private, local GPU voice generation.",
   "repository": {
     "provider": "github",

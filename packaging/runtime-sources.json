@@ -1,0 +1,243 @@
+[
+  {
+    "package": "antlr4-python3-runtime",
+    "version": "4.8",
+    "asset": "antlr4-python3-runtime-4.8.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/56/02/789a0bddf9c9b31b14c3e79ec22b9656185a803dc31c15f006f9855ece0d/antlr4-python3-runtime-4.8.tar.gz",
+    "sha256": "15793f5d0512a372b4e7d2284058ad32ce7dd27126b105fb0b2245130445db33",
+    "size": 112404,
+    "notices": []
+  },
+  {
+    "package": "loguru",
+    "version": "0.7.3",
+    "asset": "loguru-0.7.3.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz",
+    "sha256": "19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6",
+    "size": 63559,
+    "notices": []
+  },
+  {
+    "package": "tokenizers",
+    "version": "0.22.2",
+    "asset": "tokenizers-0.22.2.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/73/6f/f80cfef4a312e1fb34baf7d85c72d4411afde10978d4657f8cdd811d3ccc/tokenizers-0.22.2.tar.gz",
+    "sha256": "473b83b915e547aa366d1eee11806deaf419e17be16310ac0a14077f1e28f917",
+    "size": 372115,
+    "notices": [
+      "tokenizers-0.22.2/tokenizers/LICENSE"
+    ]
+  },
+  {
+    "package": "soxr",
+    "version": "1.1.0",
+    "asset": "soxr-1.1.0.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/ed/11/27cebce4a108f77afea7c80545115536b45e3f11ebfb914f638fdd9ba847/soxr-1.1.0.tar.gz",
+    "sha256": "9f228ae21c78fa9359ca98d8a5e8e91f30639e438e574133dace62c5b5309e44",
+    "size": 173067,
+    "notices": [
+      "soxr-1.1.0/COPYING.LGPL",
+      "soxr-1.1.0/LICENSE.txt",
+      "soxr-1.1.0/cmake/LICENSE-PFFFT.txt",
+      "soxr-1.1.0/libsoxr/COPYING.LGPL",
+      "soxr-1.1.0/libsoxr/lsr-tests/COPYING"
+    ],
+    "soxrSourceIncluded": true
+  },
+  {
+    "package": "orjson",
+    "version": "3.11.9",
+    "asset": "orjson-3.11.9.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/7e/0c/964746fcafbd16f8ff53219ad9f6b412b34f345c75f384ad434ceaadb538/orjson-3.11.9.tar.gz",
+    "sha256": "4fef17e1f8722c11587a6ef18e35902450221da0028e65dbaaa543619e68e48f",
+    "size": 5599163,
+    "notices": [
+      "orjson-3.11.9/LICENSE-APACHE",
+      "orjson-3.11.9/LICENSE-MIT",
+      "orjson-3.11.9/LICENSE-MPL-2.0",
+      "orjson-3.11.9/include/cargo/associative-cache-3.0.1/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/associative-cache-3.0.1/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/bytecount-0.6.9/LICENSE.Apache2",
+      "orjson-3.11.9/include/cargo/bytecount-0.6.9/LICENSE.MIT",
+      "orjson-3.11.9/include/cargo/bytes-1.11.1/LICENSE",
+      "orjson-3.11.9/include/cargo/cc-1.2.61/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/cc-1.2.61/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/cfg-if-1.0.4/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/cfg-if-1.0.4/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/encoding_rs-0.8.35/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/encoding_rs-0.8.35/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/encoding_rs-0.8.35/LICENSE-WHATWG",
+      "orjson-3.11.9/include/cargo/find-msvc-tools-0.1.9/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/find-msvc-tools-0.1.9/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/gimli-0.32.3/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/gimli-0.32.3/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/itoa-1.0.18/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/itoa-1.0.18/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/itoap-1.0.1/LICENSE",
+      "orjson-3.11.9/include/cargo/jiff-0.2.24/COPYING",
+      "orjson-3.11.9/include/cargo/jiff-0.2.24/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/jiff-0.2.24/UNLICENSE",
+      "orjson-3.11.9/include/cargo/jiff-static-0.2.24/COPYING",
+      "orjson-3.11.9/include/cargo/jiff-static-0.2.24/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/jiff-static-0.2.24/UNLICENSE",
+      "orjson-3.11.9/include/cargo/libc-0.2.186/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/libc-0.2.186/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/memchr-2.8.0/COPYING",
+      "orjson-3.11.9/include/cargo/memchr-2.8.0/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/memchr-2.8.0/UNLICENSE",
+      "orjson-3.11.9/include/cargo/no-panic-0.1.36/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/no-panic-0.1.36/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/once_cell-1.21.4/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/once_cell-1.21.4/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/portable-atomic-1.13.1/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/portable-atomic-1.13.1/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/portable-atomic-util-0.2.7/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/portable-atomic-util-0.2.7/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/proc-macro2-1.0.106/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/proc-macro2-1.0.106/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/pyo3-build-config-0.28.3/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/pyo3-build-config-0.28.3/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/pyo3-ffi-0.28.3/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/pyo3-ffi-0.28.3/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/quote-1.0.45/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/quote-1.0.45/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/serde-1.0.228/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/serde-1.0.228/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/serde_core-1.0.228/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/serde_core-1.0.228/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/serde_derive-1.0.228/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/serde_derive-1.0.228/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/serde_json-1.0.149/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/serde_json-1.0.149/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/shlex-1.3.0/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/shlex-1.3.0/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/simdutf8-0.1.5/LICENSE-Apache",
+      "orjson-3.11.9/include/cargo/simdutf8-0.1.5/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/syn-2.0.117/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/syn-2.0.117/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/target-lexicon-0.13.5/LICENSE",
+      "orjson-3.11.9/include/cargo/unicode-ident-1.0.24/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/unicode-ident-1.0.24/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/unicode-ident-1.0.24/LICENSE-UNICODE",
+      "orjson-3.11.9/include/cargo/unwinding-0.2.8/LICENSE-APACHE",
+      "orjson-3.11.9/include/cargo/unwinding-0.2.8/LICENSE-MIT",
+      "orjson-3.11.9/include/cargo/xxhash-rust-0.8.15/LICENSE",
+      "orjson-3.11.9/include/cargo/zmij-1.0.21/LICENSE-MIT"
+    ]
+  },
+  {
+    "package": "num2words",
+    "version": "0.5.14",
+    "asset": "num2words-0.5.14.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/f6/58/ad645bd38b4b648eb2fc2ba1b909398e54eb0cbb6a7dbd2b4953e38c9621/num2words-0.5.14.tar.gz",
+    "sha256": "b066ec18e56b6616a3b38086b5747daafbaa8868b226a36127e0451c0cf379c6",
+    "size": 218213,
+    "notices": [
+      "num2words-0.5.14/COPYING"
+    ]
+  },
+  {
+    "package": "coqui-tts",
+    "version": "0.27.5",
+    "asset": "coqui_tts-0.27.5.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/fa/8e/9dcb19015aba41017ef836257a7956059cc3be52d4831f49426146c56956/coqui_tts-0.27.5.tar.gz",
+    "sha256": "64304dd6a817c4b56019d53ba65b63e0e25ec1593f4b96f3d40b243daa73bf72",
+    "size": 2181908,
+    "notices": [
+      "coqui_tts-0.27.5/LICENSE.txt"
+    ]
+  },
+  {
+    "package": "soundfile",
+    "version": "0.14.0",
+    "asset": "soundfile-0.14.0.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/d2/db/949331952a6fb1c5b12e9de80fd08747966c2039d1a61db4764fbd3981c2/soundfile-0.14.0.tar.gz",
+    "sha256": "ba1c1a2d618bca5c406647c83b89f07cc8810fa506a50622a6993ba130c1de11",
+    "size": 47842,
+    "notices": [
+      "soundfile-0.14.0/LICENSE"
+    ]
+  },
+  {
+    "package": "rvc-python",
+    "version": "0.1.5",
+    "asset": "rvc_python-0.1.5.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/da/79/7037285a5b6c883310bf1969023fddfea01d3c7a2d30a375b93561f21ff7/rvc_python-0.1.5.tar.gz",
+    "sha256": "486da646e4813b0d7d2ad8ac31eff728e7ecb8adfc05c545f2768b11542f6857",
+    "size": 65362,
+    "notices": [
+      "rvc_python-0.1.5/LICENSE"
+    ]
+  },
+  {
+    "package": "fairseq",
+    "version": "0.12.2",
+    "asset": "fairseq-0.12.2.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/30/36/db42846570f479ac859be3b48d8b47f2ae9b0b9c77487a512f2f2ecbcb6b/fairseq-0.12.2.tar.gz",
+    "sha256": "34f1b18426bf3844714534162f065ab733e049597476daa35fffb4d06a92b524",
+    "size": 9595935,
+    "notices": [
+      "fairseq-0.12.2/LICENSE"
+    ]
+  },
+  {
+    "asset": "libsndfile-1.2.2.tar.gz",
+    "url": "https://codeload.github.com/libsndfile/libsndfile/tar.gz/1.2.2",
+    "sha256": "ffe12ef8add3eaca876f04087734e6e8e029350082f3251f565fa9da55b52121",
+    "size": 684875
+  },
+  {
+    "asset": "libflac-1.4.3.tar.gz",
+    "url": "https://codeload.github.com/xiph/flac/tar.gz/1.4.3",
+    "sha256": "0a4bb82a30609b606650d538a804a7b40205366ce8fc98871b0ecf3fbb0611ee",
+    "size": 914427
+  },
+  {
+    "asset": "libvorbis-v1.3.7.tar.gz",
+    "url": "https://codeload.github.com/xiph/vorbis/tar.gz/v1.3.7",
+    "sha256": "270c76933d0934e42c5ee0a54a36280e2d87af1de3cc3e584806357e237afd13",
+    "size": 1234573
+  },
+  {
+    "asset": "opus-v1.5.2.tar.gz",
+    "url": "https://codeload.github.com/xiph/opus/tar.gz/v1.5.2",
+    "sha256": "9480e329e989f70d69886ded470c7f8cfe6c0667cc4196d4837ac9e668fb7404",
+    "size": 4183352
+  },
+  {
+    "asset": "mpg123-1.32.9.tar.bz2",
+    "url": "https://www.mpg123.de/download/mpg123-1.32.9.tar.bz2",
+    "sha256": "03b61e4004e960bacf2acdada03ed94d376e6aab27a601447bd4908d8407b291",
+    "size": 1118388
+  },
+  {
+    "asset": "lame-3.100.tar.gz",
+    "url": "https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz",
+    "sha256": "ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e",
+    "size": 1524133
+  },
+  {
+    "asset": "vcpkg-2024.12.16.tar.gz",
+    "url": "https://codeload.github.com/microsoft/vcpkg/tar.gz/refs/tags/2024.12.16",
+    "sha256": "3049719d14a572b133da224bc4ada9a0195a9268aad973633abc8f1ecfaf853a",
+    "size": 4457704
+  },
+  {
+    "asset": "libsndfile-binaries-a3e6f976.tar.gz",
+    "url": "https://codeload.github.com/bastibe/libsndfile-binaries/tar.gz/a3e6f9769d0c7e91d2d036cf0fdbe5b4bbf18b87",
+    "sha256": "90ef1652242cb3a4052d4f75885884f946403a32fbcf62ff5da8c49ac2b5ed76",
+    "size": 7372090
+  },
+  {
+    "asset": "hydra-core-1.0.7.tar.gz",
+    "url": "https://files.pythonhosted.org/packages/f9/77/262e49f48fab1db502d966a3065830dd026e1f050c382f77514bc1a9d048/hydra-core-1.0.7.tar.gz",
+    "sha256": "58cc3f7531995b6d8de162ca21f936e17bdaebd4d1e8614d63c32e17c2e41e45",
+    "size": 109178
+  },
+  {
+    "asset": "libogg-v1.3.5.tar.gz",
+    "url": "https://gitlab.xiph.org/xiph/ogg/-/archive/v1.3.5/ogg-v1.3.5.tar.gz",
+    "sha256": "769ed632a71bfa8bdd3439ac7c712b74e12affdaeae2852c6a859bbbba424e68",
+    "size": 251771
+  }
+]

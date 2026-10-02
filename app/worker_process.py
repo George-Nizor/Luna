@@ -36,6 +36,18 @@ def _make_engine(config: dict[str, Any], model_id: str):
         from .engines.fake import FakeVoiceEngine
 
         return FakeVoiceEngine(delay_seconds=float(config["fake_delay_seconds"]), fail=bool(config["fake_fail"])), None
+    from .config import Settings
+    from .model_catalog import PACKS, pack_source
+
+    settings = Settings.from_worker_dict(config)
+    pack_id = next((key for key, value in PACKS.items() if value["repository"] == model_id), None)
+    if pack_id and PACKS[pack_id]["kind"] == "voices":
+        from .engines.qwen_custom import QwenCustomVoiceEngine
+
+        return QwenCustomVoiceEngine(
+            model_id=model_id, model_source=pack_source(settings, pack_id),
+            allow_cpu=settings.allow_cpu, max_new_tokens=settings.max_new_tokens, offline_mode=True,
+        ), None
     if model_id == "david":
         from .engines.xtts_clone import XttsAttenboroughEngine
 
@@ -46,12 +58,20 @@ def _make_engine(config: dict[str, Any], model_id: str):
             allow_cpu=bool(config["allow_cpu"]),
             silence_ms=int(config["chunk_silence_milliseconds"]),
         ), None
-    if model_id in {"egirl-fast", "egirl-best"}:
+    if model_id.startswith("egirl-"):
         from .engines.rvc_egirl import EgirlRvcEngine
 
-        quality = model_id.removeprefix("egirl-")
+        quality = model_id.split(":")[0].removeprefix("egirl-")
         qwen_model_id = str(config[f"qwen_{quality}_model"])
-        qwen_path_value = config.get(f"qwen_{quality}_path")
+        source_id = "qwen-voices-fast" if quality == "fast" else "qwen-voices-high"
+        if ":" in model_id:
+            source_id = model_id.split(":", 1)[1]
+        use_custom_source = PACKS[source_id]["kind"] == "voices" and pack_source(settings, source_id) is not None
+        if use_custom_source:
+            qwen_model_id = PACKS[source_id]["repository"]
+        else:
+            source_id = "qwen-clone-fast" if quality == "fast" else "qwen-clone-high"
+        qwen_path_value = pack_source(settings, source_id)
 
         return EgirlRvcEngine(
             rvc_directory=Path(
@@ -63,7 +83,8 @@ def _make_engine(config: dict[str, Any], model_id: str):
             qwen_model_source=Path(str(qwen_path_value)) if qwen_path_value else None,
             allow_cpu=bool(config["allow_cpu"]),
             max_new_tokens=int(config["max_new_tokens"]),
-            offline_mode=bool(config["offline_mode"]),
+            offline_mode=True,
+            use_custom_source=use_custom_source,
         ), None
     # This is intentionally the only import path for the Qwen adapter.
     from .engines.qwen_clone import QwenCloneEngine
@@ -71,13 +92,7 @@ def _make_engine(config: dict[str, Any], model_id: str):
     return (
         QwenCloneEngine(
             model_id=model_id,
-            model_source=(
-                Path(str(config["qwen_best_path"]))
-                if model_id == config["qwen_best_model"] and config.get("qwen_best_path")
-                else Path(str(config["qwen_fast_path"]))
-                if model_id == config["qwen_fast_model"] and config.get("qwen_fast_path")
-                else None
-            ),
+            model_source=pack_source(settings, pack_id) if pack_id else None,
             allow_cpu=bool(config["allow_cpu"]),
             max_new_tokens=int(config["max_new_tokens"]),
             offline_mode=bool(config["offline_mode"]),
@@ -153,17 +168,51 @@ def worker_main(
                         }
                     )
                 response_queue.put({"type": "progress", "job_id": job_id, "message": "Generating"})
+                if message.get("seed") is not None:
+                    import random
+
+                    import numpy as np
+
+                    seed = int(message["seed"])
+                    random.seed(seed)
+                    np.random.seed(seed)
+                    if config["engine"] != "fake":
+                        import torch
+
+                        torch.manual_seed(seed)
+                        if torch.cuda.is_available():
+                            torch.cuda.manual_seed_all(seed)
+                source_engine = getattr(engine, "source_engine", None) or engine
+                if hasattr(source_engine, "temperature"):
+                    source_engine.temperature = float(message.get("temperature", 0.7))
+                generation_kwargs = {}
+                if model_id.endswith("-CustomVoice"):
+                    generation_kwargs["instruction"] = str(message.get("instruction", ""))
                 result = engine.generate(
                     text_chunks=list(message["text_chunks"]),
                     language=str(message["language"]),
-                    reference_audio_path=Path(str(message["reference_audio_path"])),
+                    reference_audio_path=Path(str(message["reference_audio_path"])) if message.get("reference_audio_path") else None,
                     reference_transcript=str(message["reference_transcript"]),
                     profile_id=str(message["profile_id"]),
                     output_path=Path(str(message["output_path"])),
                     silence_ms=int(message["silence_ms"]),
+                    **generation_kwargs,
                 )
+                source_engine = getattr(engine, "source_engine", None) or engine
+                actual_model = getattr(source_engine, "model_id", model_id)
+                source_path = getattr(source_engine, "model_source", None)
+                revision = None
+                if source_path:
+                    import json
+                    try:
+                        revision = json.loads((source_path / "installed.json").read_text())["revision"]
+                    except (OSError, ValueError, KeyError):
+                        if source_path.parent.name == "snapshots":
+                            revision = source_path.name
                 response_queue.put(
                     {
+                        "source_model": actual_model,
+                        "model_revision": revision,
                         "type": "success",
                         "job_id": job_id,
                         "sample_rate": result.sample_rate,
@@ -174,7 +223,9 @@ def worker_main(
                 )
             except Exception as exc:  # worker boundary converts engine failures to serializable errors
                 error_type = type(exc).__name__
-                if error_type == "CudaUnavailableError":
+                if getattr(exc, "code", None) == "AUDIO_LIMIT_REACHED":
+                    code = "AUDIO_LIMIT_REACHED"
+                elif error_type == "CudaUnavailableError":
                     code = "CUDA_UNAVAILABLE"
                 elif "out of memory" in str(exc).lower() or error_type == "OutOfMemoryError":
                     code = "CUDA_OUT_OF_MEMORY"

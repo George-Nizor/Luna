@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
+$Version = (Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw | ConvertFrom-Json).version
 $ReleaseRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot "release"))
 $Source = Get-Item -LiteralPath $InputPath
 $Installer = Get-Item -LiteralPath $InstallerPath
@@ -18,7 +19,7 @@ if ($Source.PSIsContainer -or $Installer.PSIsContainer) {
   throw "InputPath and InstallerPath must both be files."
 }
 if (-not $OutputDirectory) {
-  $OutputDirectory = Join-Path $ReleaseRoot "publish\v0.3.0"
+  $OutputDirectory = Join-Path $ReleaseRoot "publish\v$Version"
 }
 $OutputFullPath = [IO.Path]::GetFullPath($OutputDirectory)
 $ReleaseBoundary = $ReleaseRoot.TrimEnd('\') + '\'
@@ -87,7 +88,7 @@ try {
   $Manifest = [ordered]@{
     schemaVersion = 1
     product = "luna"
-    version = "0.3.0"
+    version = $Version
     platform = "windows-x64"
     minimumInstrumentaVersion = "0.8.0"
     installStrategy = "installed-desktop"
