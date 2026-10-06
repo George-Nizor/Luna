@@ -1,6 +1,12 @@
 ![Luna banner](docs/images/luna-banner.png)
 
+<p align="center"><img src="docs/brand/luna-animated.svg" alt="Luna crescent with a voice" width="96" /></p>
+
 # Luna
+
+Private, local GPU voice generation.
+
+![Luna in the dark theme: the voice visualiser, the text composer and the voice controls](docs/images/luna-studio-dark.png)
 
 Luna is a Windows desktop app for local GPU speech generation, launched from Instrumenta, the Start
 menu, or `Luna.exe`. It includes its Python runtime and opens a private backend in an Electron window.
@@ -10,10 +16,12 @@ Current source version: **0.4.1**.
 
 ## Choose voices and models
 
-Open **Get / Manage Voices**. Choose which speakers appear in your voice menu, then download the
+Open **Voices** in the top bar (or **Get / manage voices** in Settings). Choose which speakers appear in your voice menu, then download the
 quality packs you want. The catalog displays exact download sizes, available disk space, official
 sources, installation status, and progress. Downloads can be paused and resumed. Every file is
 checked against a pinned revision and checksum before the pack becomes available.
+
+![The voice library in the light theme, with nine Qwen speakers ready and the shared packs below](docs/images/luna-voice-library-light.png)
 
 - **Official Qwen speakers:** Ryan, Aiden, Vivian, Serena, Uncle Fu, Dylan, Eric, Ono Anna, and Sohee.
   Fast uses the 0.6B CustomVoice model; High uses the separate 1.7B CustomVoice model.
@@ -46,11 +54,11 @@ can adjust the limits in the environment configuration.
 
 ## Generation library and exports
 
-Sound History keeps every generation until you delete it. Search the text or voice, filter by quality,
+**Sound history** keeps every generation until you delete it. Search the text or voice, filter by quality,
 and page through all results. Each entry includes playback, WAV export, metadata export, Explorer
 reveal in the desktop app, and deletion.
 
-**Reuse Text** restores the original text, voice, language, quality, style, and seed to the editor.
+**Reuse text** restores the original text, voice, language, quality, style, and seed to the editor.
 Change any parameters, then generate a new output. This preserves the original generation.
 
 Details record model provenance, seed, duration, generation time, sample rate, file size, character
@@ -96,6 +104,7 @@ Models, reference recordings, runtime payloads, logs, QA audio, and builds are e
 - [Identity and local data](docs/identity-and-data.md)
 - [Release assembly](docs/releasing.md)
 - [Publication audit](docs/publication-audit.md)
+- [Brand v2 in Luna](docs/brand/README.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [Official Qwen Fast voices](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice)
 - [Official Qwen High voices](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)
@@ -104,3 +113,12 @@ Models, reference recordings, runtime payloads, logs, QA audio, and builds are e
 
 Source improvements do not publish or replace an installed release. Redistribution of the runtime,
 legacy recordings, and legacy weights retains the publication audit's separate requirements.
+
+## Family
+
+Luna is part of [Instrumenta](https://github.com/George-Nizor/Instrumenta), made by Bonehead Labs, and
+follows the Instrumenta brand v2: a crescent moon with a voice, drawn as a freestanding object, in a
+deliberately quiet lunar blue. The interface type (Fraunces, Commissioner, Spline Sans Mono) is SIL
+OFL 1.1, vendored in `app/static/brand/fonts` with its licences. Licence: MIT ([LICENSE](LICENSE));
+bundled components keep their own ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
+See [docs/brand/README.md](docs/brand/README.md) for what was taken from the brand and what was kept.
