@@ -31,5 +31,8 @@
       "type": "windows-uninstall",
       "displayName": "Luna"
     }
+  },
+  "assets": {
+    "mark": "assets/brand/luna-app-art.png"
   }
 }
