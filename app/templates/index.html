@@ -4,87 +4,105 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="local-session-token" content="{{ session_token }}">
-  <meta name="theme-color" content="#000000">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#141210" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f1ec" media="(prefers-color-scheme: light)">
   <title>Luna</title>
   <link rel="icon" type="image/svg+xml" href="/static/brand/luna.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/static/brand/luna-32.png">
   <link rel="stylesheet" href="/static/brand/fonts/fonts.css">
+  <link rel="stylesheet" href="/static/brand/instrumenta-icons.css">
+  <link rel="stylesheet" href="/static/brand/luna-icons.css">
   <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/theme.js"></script>
 </head>
 <body data-core-state="idle">
+  <header class="topbar">
+    <div class="brand ii-hover" id="brand" tabindex="-1">
+      <span class="luna-brand-mark" id="brand-mark"><img src="/static/brand/luna.svg" alt="" width="40" height="40"></span>
+      <span class="wordmark">Luna</span>
+    </div>
+    <div class="top-actions">
+      <button id="open-voices-button" class="btn" type="button"><i data-icon="cassette"></i><span>Voices</span></button>
+      <div class="theme-toggle" role="radiogroup" aria-label="Theme">
+        <button type="button" role="radio" data-theme-choice="system" aria-checked="true" aria-label="Follow the system theme" title="System"><i data-icon="monitor" data-size="18"></i></button>
+        <button type="button" role="radio" data-theme-choice="light" aria-checked="false" aria-label="Light theme" title="Light"><i data-icon="sun" data-size="18"></i></button>
+        <button type="button" role="radio" data-theme-choice="dark" aria-checked="false" aria-label="Dark theme" title="Dark"><i data-icon="moon" data-size="18"></i></button>
+      </div>
+      <button id="system-menu-button" class="icon-button" type="button" aria-label="Open settings" title="Settings"><i data-icon="gear" data-size="30"></i></button>
+    </div>
+  </header>
+
   <main class="terminal" id="terminal">
-    <img class="luna-brand-mark" src="/static/brand/luna.svg" alt="Luna">
     <section class="core-zone" aria-label="Voice visualizer">
       <canvas id="voice-core-canvas" aria-label="Animated voice core"></canvas>
     </section>
 
-    <section class="input-zone" aria-label="Text input">
-      <textarea id="generation-text" maxlength="0" aria-describedby="char-counter segment-counter text-limit-help" aria-label="Text to synthesize" placeholder=""></textarea>
-      <button id="generate-button" class="generate-button" type="button" disabled aria-label="Generate voice" title="Generate voice">
-        <svg viewBox="0 0 32 20" aria-hidden="true"><path d="M1 10h4V5h3v10h3V2h3v16h3V5h3v10h3V8h3v4h5"/></svg>
-      </button>
+    <section class="composer" aria-label="Text input">
+      <textarea id="generation-text" maxlength="0" aria-describedby="char-counter segment-counter text-limit-help" aria-label="Text to synthesize" placeholder="Type or paste what Luna should say"></textarea>
+      <div class="composer-foot">
+        <div class="input-meta">
+          <span id="char-counter" class="mono">Loading voice limits…</span>
+          <span id="segment-counter"></span>
+        </div>
+        <button id="generate-button" class="btn primary generate-button" type="button" disabled title="Generate voice"><i data-icon="voice"></i><span>Generate</span></button>
+      </div>
     </section>
-
-    <div class="input-meta">
-      <span id="char-counter">Loading voice limits…</span>
-      <span id="segment-counter"></span>
-      <button id="open-voices-button" class="text-action bright" type="button">GET / MANAGE VOICES</button>
-      <small id="text-limit-help"></small>
-    </div>
+    <small id="text-limit-help" class="under-note"></small>
 
     <section id="latest-result" class="control-row" aria-label="Voice controls">
       <div class="settings-group" aria-label="Voice settings">
         <div class="setting-wrap">
-          <button id="voice-trigger" class="setting-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span class="setting-label">VOICE</span><span id="voice-setting-value" class="setting-value">DAVID</span><span class="setting-arrow">▾</span></button>
+          <button id="voice-trigger" class="setting-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span class="setting-label">Voice</span><span id="voice-setting-value" class="setting-value">David</span><i data-icon="chevronDown" data-size="16"></i></button>
           <div id="voice-menu" class="pixel-menu" role="listbox" hidden>
-            <button class="menu-option selected" type="button" role="option" data-model="david" aria-selected="true">DAVID ATTENBOROUGH</button>
-            <button class="menu-option" type="button" role="option" data-model="egirl" aria-selected="false">E-GIRL</button>
+            <button class="menu-option selected" type="button" role="option" data-model="david" aria-selected="true">David Attenborough</button>
+            <button class="menu-option" type="button" role="option" data-model="egirl" aria-selected="false">E-Girl</button>
           </div>
         </div>
         <div class="setting-wrap">
-          <button id="quality-trigger" class="setting-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span class="setting-label">QUALITY</span><span id="quality-setting-value" class="setting-value">HIGH</span><span class="setting-arrow">▾</span></button>
-          <div id="quality-menu" class="pixel-menu" role="listbox" hidden><button class="menu-option selected" type="button" role="option" data-quality="fast" aria-selected="true">FAST</button><button class="menu-option" type="button" role="option" data-quality="best" aria-selected="false">HIGH</button></div>
+          <button id="quality-trigger" class="setting-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span class="setting-label">Quality</span><span id="quality-setting-value" class="setting-value">High</span><i data-icon="chevronDown" data-size="16"></i></button>
+          <div id="quality-menu" class="pixel-menu" role="listbox" hidden><button class="menu-option selected" type="button" role="option" data-quality="fast" aria-selected="true">Fast</button><button class="menu-option" type="button" role="option" data-quality="best" aria-selected="false">High</button></div>
         </div>
         <div class="setting-wrap">
-          <button id="language-trigger" class="setting-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span class="setting-label">LANGUAGE</span><span id="language-setting-value" class="setting-value">ENGLISH</span><span class="setting-arrow">▾</span></button>
+          <button id="language-trigger" class="setting-trigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span class="setting-label">Language</span><span id="language-setting-value" class="setting-value">English</span><i data-icon="chevronDown" data-size="16"></i></button>
           <div id="language-menu" class="pixel-menu language-menu" role="listbox" hidden></div>
         </div>
       </div>
 
       <div class="playback-group" aria-label="Playback controls">
-        <button id="playback-play" class="play-button" type="button" disabled aria-label="Play output" title="Play output"><svg class="play-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2l11 8-11 8z"/></svg><svg class="pause-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h3v14H5zM12 3h3v14h-3z"/></svg><span class="pending-dots" aria-hidden="true"><i></i><i></i><i></i></span></button>
+        <button id="playback-play" class="play-button" type="button" disabled aria-label="Play output" title="Play output"><span class="play-icon"><i data-icon="play" data-size="20"></i></span><span class="pause-icon"><i data-icon="pause" data-size="20"></i></span><span class="pending-dots" aria-hidden="true"><i></i><i></i><i></i></span></button>
         <canvas id="playback-waveform" class="playback-waveform" width="360" height="30" aria-label="Audio waveform"></canvas>
         <input id="playback-scrubber" class="visually-hidden" type="range" min="0" max="100" value="0" step="0.1" aria-label="Seek through output">
-        <span id="playback-current">00:00</span><span id="playback-duration">00:00</span>
+        <span class="timecodes mono"><span id="playback-current">00:00</span><span aria-hidden="true">/</span><span id="playback-duration">00:00</span></span>
         <audio id="result-audio" preload="metadata"></audio>
       </div>
 
       <div class="action-group" aria-label="Output actions">
-        <a id="result-download" class="icon-button disabled" download aria-label="Download output" title="Download output"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v13m0 0l-5-5m5 5l5-5M4 18v3h16v-3"/></svg></a>
-        <button id="delete-latest-button" class="icon-button disabled" type="button" disabled aria-label="Delete output" title="Delete output"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3m-8 0l1 14h8l1-14M10 11v6m4-6v6"/></svg></button>
-        <button id="reveal-latest-button" class="text-action" type="button" disabled hidden>REVEAL</button><button id="reuse-latest-button" class="text-action" type="button" disabled>REUSE</button>
-        <button id="system-menu-button" class="icon-button" type="button" aria-label="Open settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16M8 5v4m8 1v4m-5 1v4"/></svg></button>
+        <a id="result-download" class="icon-button disabled" download aria-label="Export WAV" title="Export WAV"><i data-icon="wavfile"></i></a>
+        <button id="reveal-latest-button" class="icon-button" type="button" disabled hidden aria-label="Show in folder" title="Show in folder"><i data-icon="folder"></i></button>
+        <button id="reuse-latest-button" class="icon-button" type="button" disabled aria-label="Reuse text and settings" title="Reuse text and settings"><i data-icon="reuse"></i></button>
+        <button id="delete-latest-button" class="icon-button disabled" type="button" disabled aria-label="Delete output" title="Delete output"><i data-icon="trash"></i></button>
       </div>
     </section>
 
     <p id="model-warning" class="voice-note" role="status"></p>
-    <details class="generation-options"><summary>GENERATION PARAMETERS</summary>
+    <details class="generation-options"><summary><i data-icon="sliders"></i><span>Generation parameters</span><i data-icon="chevronDown" data-size="16"></i></summary>
       <div class="generation-options-grid">
-        <div><label for="generation-instruction">STYLE DIRECTION</label><input id="generation-instruction" maxlength="500" placeholder="Calm, measured narration" disabled><small id="style-help"></small></div>
-        <div><label for="generation-seed">SEED (OPTIONAL)</label><input id="generation-seed" type="number" min="0" max="4294967295" step="1" placeholder="Random"><small>Saved with each generation. Reuse it to compare parameters.</small></div>
+        <div><label for="generation-instruction">Style direction</label><input id="generation-instruction" maxlength="500" placeholder="Calm, measured narration" disabled><small id="style-help"></small></div>
+        <div><label for="generation-seed">Seed (optional)</label><input id="generation-seed" class="mono" type="number" min="0" max="4294967295" step="1" placeholder="Random"><small>Saved with each generation. Reuse it to compare parameters.</small></div>
+        <div><label for="generation-temperature">Sampling temperature</label><input id="generation-temperature" class="mono" type="number" min="0.2" max="1.2" step="0.05" value="0.7" required><small>Lower is steadier; higher adds variation. Available for Qwen-based voices.</small></div>
       </div>
-      <div class="sampling-control"><label for="generation-temperature">SAMPLING TEMPERATURE</label><input id="generation-temperature" type="number" min="0.2" max="1.2" step="0.05" value="0.7" required><small>Lower is steadier; higher adds variation. Available for Qwen-based voices.</small></div>
     </details>
 
     <section id="sound-history" class="sound-history" aria-label="Sound history">
-      <button id="history-toggle" class="history-toggle" type="button" aria-expanded="false" aria-controls="main-history-list"><span class="history-title">SOUND HISTORY</span><span id="history-count" class="history-count">0 OUTPUTS</span><span id="history-arrow" class="history-arrow" aria-hidden="true">▾</span></button>
+      <button id="history-toggle" class="history-toggle" type="button" aria-expanded="false" aria-controls="main-history-list"><i data-icon="clock"></i><span class="history-title">Sound history</span><span id="history-count" class="history-count mono">0 outputs</span><span id="history-arrow" class="history-arrow" aria-hidden="true"><i data-icon="chevronDown" data-size="18"></i></span></button>
       <div id="history-controls" class="history-controls" hidden>
-        <label for="history-search">SEARCH TEXT OR VOICE<input id="history-search" type="search" placeholder="Find a generation"></label>
-        <label for="history-quality">QUALITY<select id="history-quality"><option value="">ALL QUALITIES</option><option value="fast">FAST</option><option value="best">HIGH / ORIGINAL</option></select></label>
-        <label for="history-sort">ORDER<select id="history-sort"><option value="newest">NEWEST FIRST</option><option value="oldest">OLDEST FIRST</option></select></label>
+        <label for="history-search">Search text or voice<span class="search-field"><i data-icon="search" data-size="16"></i><input id="history-search" type="search" placeholder="Find a generation"></span></label>
+        <label for="history-quality">Quality<select id="history-quality"><option value="">All qualities</option><option value="fast">Fast</option><option value="best">High / original</option></select></label>
+        <label for="history-sort">Order<select id="history-sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
       </div>
-      <div id="history-pagination" class="history-pagination" hidden><span id="history-retention"></span><button id="history-previous" class="text-action" type="button">PREVIOUS</button><span id="history-page"></span><button id="history-next" class="text-action" type="button">NEXT</button></div>
-      <div id="main-history-list" class="main-history-list" hidden><div class="empty-history">NO OUTPUTS</div></div>
+      <div id="history-pagination" class="history-pagination" hidden><span id="history-retention"></span><button id="history-previous" class="text-action" type="button">Previous</button><span id="history-page" class="mono"></span><button id="history-next" class="text-action" type="button">Next</button></div>
+      <div id="main-history-list" class="main-history-list" hidden><div class="empty-history">No outputs</div></div>
     </section>
 
     <p id="generation-status" class="generation-status" role="status" aria-live="polite"></p>
@@ -94,44 +112,46 @@
     <select id="generation-language" class="visually-hidden" aria-label="Language"></select>
   </main>
 
-  <dialog id="settings-dialog" aria-label="Settings">
+  <dialog id="settings-dialog" aria-labelledby="settings-title">
     <section class="settings-panel">
-      <div class="settings-top"><span class="settings-title">SETTINGS</span><button id="close-settings" class="drawer-close" type="button" aria-label="Close settings">×</button></div>
-      <div class="settings-section"><div class="settings-line"><span class="settings-section-title">VOICE</span><button id="settings-voices-button" class="text-action bright" type="button">GET / MANAGE VOICES</button></div><div class="settings-voice-list">
-        <button class="voice-option selected" type="button" data-model="david" aria-pressed="true">DAVID ATTENBOROUGH <small>XTTS / ORIGINAL</small></button>
-        <button class="voice-option" type="button" data-model="egirl" aria-pressed="false">E-GIRL <small>RVC / FAST OR HIGH</small></button>
+      <div class="settings-top"><h2 class="settings-title" id="settings-title">Settings</h2><button id="close-settings" class="drawer-close" type="button" aria-label="Close settings"><i data-icon="close" data-size="20"></i></button></div>
+      <div class="settings-section"><div class="settings-line"><span class="section-head"><i data-icon="voice"></i><span class="settings-section-title">Voice</span></span><button id="settings-voices-button" class="btn small" type="button"><i data-icon="cassette" data-size="20"></i><span>Get / manage voices</span></button></div><div class="settings-voice-list">
+        <button class="voice-option selected" type="button" data-model="david" aria-pressed="true">David Attenborough <small>XTTS / original</small></button>
+        <button class="voice-option" type="button" data-model="egirl" aria-pressed="false">E-Girl <small>RVC / Fast or High</small></button>
       </div></div>
-      <div class="settings-section settings-grid"><label for="settings-quality">QUALITY</label><select id="settings-quality"><option value="fast">FAST</option><option value="best">HIGH</option></select><label for="settings-language">LANGUAGE</label><select id="settings-language"></select></div>
-      <div class="settings-section"><div class="settings-line"><span><span class="settings-section-title">VOICE PROFILE</span><strong id="profile-summary">FIXED VOICE / NO PROFILE</strong></span><button id="new-profile-button" class="text-action" type="button">MANAGE</button></div><div class="profile-select-line"><select id="profile-select"><option value="">NO PROFILE SELECTED</option></select><button id="delete-profile-button" class="text-action danger" type="button" aria-label="Delete selected profile">DELETE</button></div><div id="profile-details" class="profile-details">NO PROFILE SELECTED</div></div>
-      <div class="settings-section"><div class="settings-line"><span><span class="settings-section-title">SOUND HISTORY</span><strong id="settings-history-count">0 OUTPUTS</strong></span><button id="open-history-button" class="text-action" type="button">OPEN</button></div></div>
+      <div class="settings-section settings-grid"><label for="settings-quality">Quality</label><select id="settings-quality"><option value="fast">Fast</option><option value="best">High</option></select><label for="settings-language">Language</label><select id="settings-language"></select></div>
+      <div class="settings-section"><div class="settings-line"><span class="section-head"><i data-icon="mic"></i><span><span class="settings-section-title">Voice profile</span><strong id="profile-summary">Fixed voice, no profile</strong></span></span><button id="new-profile-button" class="btn small" type="button"><i data-icon="profile" data-size="20"></i><span>New profile</span></button></div><div class="profile-select-line"><select id="profile-select" aria-label="Voice profile"><option value="">No profile selected</option></select><button id="delete-profile-button" class="text-action danger" type="button" aria-label="Delete selected profile">Delete</button></div><div id="profile-details" class="profile-details">No profile selected</div></div>
+      <div class="settings-section"><div class="settings-line"><span class="section-head"><i data-icon="clock"></i><span><span class="settings-section-title">Sound history</span><strong id="settings-history-count" class="mono">0 outputs</strong></span></span><button id="open-history-button" class="text-action" type="button">Open</button></div></div>
       <div id="desktop-output-settings" class="settings-section" hidden>
-        <div class="settings-line output-directory-line"><span><span class="settings-section-title">OUTPUT DIRECTORY</span><strong id="output-directory-value">LOADING</strong></span><span class="output-directory-actions"><button id="open-output-directory" class="text-action" type="button">OPEN</button><button id="choose-output-directory" class="text-action bright" type="button">CHANGE</button></span></div>
-        <small>NEW SOUNDS ARE STORED HERE. HISTORY ALSO INCLUDES PREVIOUS OUTPUT FOLDERS.</small>
+        <div class="settings-line output-directory-line"><span class="section-head"><i data-icon="folder"></i><span><span class="settings-section-title">Output folder</span><strong id="output-directory-value" class="mono">Loading</strong></span></span><span class="output-directory-actions"><button id="open-output-directory" class="text-action" type="button">Open</button><button id="choose-output-directory" class="btn small" type="button">Change</button></span></div>
+        <small>New sounds are stored here. History also includes previous output folders.</small>
       </div>
-      <div class="settings-section system-section"><div class="settings-line"><span><span class="settings-section-title">WORKER</span><strong id="worker-status">STOPPED</strong></span><button id="unload-button" class="text-action" type="button">UNLOAD</button></div><div class="settings-line"><span><span class="settings-section-title">APPLICATION</span><strong id="app-status">RUNNING</strong></span><button id="shutdown-button" class="text-action danger" type="button">SHUT DOWN</button></div><small id="system-gpu-detail">CUDA STATUS</small></div>
+      <div class="settings-section system-section"><div class="settings-line"><span class="section-head"><i data-icon="chip"></i><span><span class="settings-section-title">Worker</span><strong id="worker-status">Stopped</strong></span></span><button id="unload-button" class="text-action" type="button">Unload</button></div><div class="settings-line"><span class="section-head"><i data-icon="power"></i><span><span class="settings-section-title">Application</span><strong id="app-status">Running</strong></span></span><button id="shutdown-button" class="btn small danger" type="button">Shut down</button></div><small id="system-gpu-detail">CUDA status</small></div>
     </section>
   </dialog>
 
-  <dialog id="profile-dialog"><form id="profile-form" method="dialog" class="profile-panel"><div class="settings-top"><span class="settings-title">NEW PROFILE</span><button type="button" id="close-profile" class="drawer-close" aria-label="Close profile">×</button></div><label for="profile-name">PROFILE NAME</label><input id="profile-name" name="name" maxlength="80" required placeholder="NARRATOR"><label for="profile-language">LANGUAGE</label><select id="profile-language" name="language"></select><label for="reference-audio">REFERENCE AUDIO</label><input id="reference-audio" name="reference_audio" type="file" accept=".wav,.flac,audio/wav,audio/flac" required><label for="reference-transcript">EXACT TRANSCRIPT</label><textarea id="reference-transcript" name="reference_transcript" maxlength="2000" required></textarea><label class="checkbox"><input id="consent-confirmed" name="consent_confirmed" type="checkbox" required><span>I CONFIRM I OWN THIS RECORDING OR HAVE PERMISSION TO USE THIS VOICE.</span></label><div class="profile-actions"><button type="button" id="cancel-profile" class="text-action">CANCEL</button><button type="submit" class="text-action bright">SAVE</button></div></form></dialog>
-  <dialog id="shutdown-dialog"><form method="dialog" class="confirm-panel"><span class="settings-title">SHUT DOWN</span><p>STOP THE LOCAL APPLICATION?</p><div class="profile-actions"><button id="cancel-shutdown" class="text-action" value="cancel">CANCEL</button><button id="confirm-shutdown" class="text-action danger" value="confirm">SHUT DOWN</button></div></form></dialog>
+  <dialog id="profile-dialog" aria-labelledby="profile-title"><form id="profile-form" method="dialog" class="profile-panel"><div class="settings-top"><h2 class="settings-title" id="profile-title"><i data-icon="mic" data-size="32"></i>New profile</h2><button type="button" id="close-profile" class="drawer-close" aria-label="Close profile"><i data-icon="close" data-size="20"></i></button></div><label for="profile-name">Profile name</label><input id="profile-name" name="name" maxlength="80" required placeholder="Narrator"><label for="profile-language">Language</label><select id="profile-language" name="language"></select><label for="reference-audio">Reference audio</label><input id="reference-audio" name="reference_audio" type="file" accept=".wav,.flac,audio/wav,audio/flac" required><label for="reference-transcript">Exact transcript</label><textarea id="reference-transcript" name="reference_transcript" maxlength="2000" required></textarea><label class="checkbox"><input id="consent-confirmed" name="consent_confirmed" type="checkbox" required><span>I confirm I own this recording or have permission to use this voice.</span></label><div class="profile-actions"><button type="button" id="cancel-profile" class="btn">Cancel</button><button type="submit" class="btn primary">Save profile</button></div></form></dialog>
+  <dialog id="shutdown-dialog" aria-labelledby="shutdown-title"><form method="dialog" class="confirm-panel"><h2 class="settings-title" id="shutdown-title"><i data-icon="power" data-size="32"></i>Shut down Luna?</h2><p>This stops the local application and its voice worker.</p><div class="profile-actions"><button id="cancel-shutdown" class="btn" value="cancel">Cancel</button><button id="confirm-shutdown" class="btn danger" value="confirm">Shut down</button></div></form></dialog>
 
-  <dialog id="voices-dialog" aria-label="Voice library">
+  <dialog id="voices-dialog" aria-labelledby="voices-title">
     <section class="voice-library-panel">
-      <div class="settings-top"><span class="settings-title">VOICE LIBRARY</span><button id="close-voices" class="drawer-close" type="button" aria-label="Close voice library">×</button></div>
+      <div class="settings-top"><h2 class="settings-title" id="voices-title"><i data-icon="cassette" data-size="36"></i>Voice library</h2><button id="close-voices" class="drawer-close" type="button" aria-label="Close voice library"><i data-icon="close" data-size="20"></i></button></div>
       <p class="catalog-intro">Choose the voices that appear in Luna. Official Qwen voices share a model pack: one download unlocks all nine speakers. Get Fast, High, or both. Your choices are saved on this computer.</p>
       <div id="catalog-voice-list" class="catalog-voice-list"></div>
       <div id="model-pack-list"></div>
-      <p id="model-free-space"></p>
+      <p id="model-free-space" class="mono"></p>
       <div id="model-download-progress" hidden>
-        <span id="model-download-label" role="status" aria-live="polite"></span>
+        <span id="model-download-label" class="mono" role="status" aria-live="polite"></span>
         <progress id="model-download-meter" max="100" value="0" aria-label="Voice model download progress"></progress>
         <p id="model-download-error" role="alert"></p>
-        <button id="pause-model-download" class="text-action" type="button">PAUSE DOWNLOAD</button>
+        <button id="pause-model-download" class="btn small" type="button">Pause download</button>
       </div>
       <p class="catalog-intro">Model files come from the official Qwen organization on Hugging Face. Luna checks pinned revisions, download sizes, and checksums before enabling a pack. Generation stays local. Existing David and E-Girl assets remain available in installations that include them.</p>
     </section>
   </dialog>
 
+  <script src="/static/brand/instrumenta-icons.js"></script>
+  <script src="/static/brand/luna-icons.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
