@@ -562,7 +562,7 @@ async function refreshPolicy() {
     $("model-warning").textContent = voice === "david" ? "Original XTTS checkpoint. This voice has one model; there is no High checkpoint." :
       voice === "egirl" ? "Qwen source plus RVC conversion. The conversion can affect clarity; compare with direct Qwen voices." :
       selectedQuality === "best" ? "High uses Qwen 1.7B. More GPU memory and generation time." : "Fast uses Qwen 0.6B. Lower memory use and faster generation.";
-    if (!voiceIsReady()) $("model-warning").textContent += " This quality needs a download. Open Get / Manage Voices.";
+    if (!voiceIsReady()) $("model-warning").textContent += " This quality needs a download. Open Voices in the top bar.";
     if (detail?.native_language && detail.native_language !== $("generation-language").value && $("generation-language").value !== "Auto")
       $("model-warning").textContent += " Best suited to " + detail.native_language + ".";
     updateTextMetrics();
