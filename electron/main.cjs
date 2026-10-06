@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
@@ -254,7 +254,8 @@ function createWindow() {
     minWidth: 960,
     minHeight: 700,
     show: false,
-    backgroundColor: "#000000",
+    // Brand v2 page grounds (app/static/styles.css --bg), so the window never flashes another colour.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#141210" : "#f4f1ec",
     autoHideMenuBar: true,
     title: "Luna",
     icon: windowIcon,
