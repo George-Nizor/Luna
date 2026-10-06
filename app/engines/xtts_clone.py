@@ -10,6 +10,7 @@ import numpy as np
 import soundfile as sf
 
 from .base import GenerationResult
+from .qwen_clone import CudaUnavailableError
 
 
 class XttsAttenboroughEngine:
@@ -44,7 +45,9 @@ class XttsAttenboroughEngine:
             raise RuntimeError("XTTS requires the optional Coqui TTS runtime (coqui-tts) to be installed.") from exc
         self.cuda_active = bool(torch.cuda.is_available())
         if not self.cuda_active and not self.allow_cpu:
-            raise RuntimeError("CUDA is unavailable for the XTTS model. Set ALLOW_CPU=true for CPU mode.")
+            raise CudaUnavailableError(
+                "Luna cannot reach an NVIDIA GPU (CUDA is unavailable). Install or update the NVIDIA driver, version 570 or newer, then restart Luna."
+            )
 
         # Coqui 0.27's high-level TTS wrapper still routes local XTTS
         # checkpoints through the old ``checkpoint_dir`` argument. Load the

@@ -11,3 +11,17 @@ contextBridge.exposeInMainWorld("voiceStudio", Object.freeze({
   getRuntimeInfo: () => ipcRenderer.invoke("studio:get-runtime-info"),
   shutdown: () => ipcRenderer.invoke("studio:shutdown"),
 }));
+
+// The first-run runtime setup screen (electron/setup). The main process answers these only while
+// that screen is showing.
+contextBridge.exposeInMainWorld("lunaSetup", Object.freeze({
+  getState: () => ipcRenderer.invoke("setup:state"),
+  start: () => ipcRenderer.invoke("setup:start"),
+  cancel: () => ipcRenderer.invoke("setup:cancel"),
+  proceed: () => ipcRenderer.invoke("setup:proceed"),
+  quit: () => ipcRenderer.invoke("setup:quit"),
+  onProgress: (callback) => {
+    ipcRenderer.removeAllListeners("setup:progress");
+    ipcRenderer.on("setup:progress", (_event, update) => callback(update));
+  },
+}));

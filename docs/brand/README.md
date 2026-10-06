@@ -110,9 +110,9 @@ than the lunar accent. Uninstalled packs show their icon in stone. Icon-only but
 
 ## Not verified / follow-ups
 
-- No Windows package was built and the real Electron window was not run: `npm run dist` needs the
-  multi-gigabyte CUDA runtime payload. The change to packaging is confined to the art inside
-  `assets/luna-icon.{ico,png}`, whose paths, sizes and format the branding test now checks.
+- Resolved in 0.6.0: the Windows package was built and its real window run, the first-run setup
+  screen and the studio in the dark theme, with the crescent and fonts rendering. (Before 0.6.0 a
+  package needed the multi-gigabyte CUDA runtime payload, so this had not been checked.)
 - The crescent's voice bars are drawn in the brand ink (`#041824`), which almost disappears on dark
   grounds, Luna's own `surface` included (visible in the banner and the dark top bar, where only the
   deep extrusion shows them). That is the glyph in Instrumenta's `instrumenta-icons.js`; a library

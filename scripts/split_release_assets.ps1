@@ -57,8 +57,11 @@ try {
   try {
     $Buffer = New-Object byte[] (8MB)
     $Part = 1
+    # A payload that fits in one asset is published under its own name: Instrumenta's single chunk is
+    # then the very file the installer downloads by itself (nsisWeb.appPackageUrl) when run alone.
+    $SingleAsset = $InputStream.Length -le $ChunkSizeBytes
     while ($InputStream.Position -lt $InputStream.Length) {
-      $ChunkName = "{0}.part{1:D3}" -f $Source.Name, $Part
+      $ChunkName = $(if ($SingleAsset) { $Source.Name } else { "{0}.part{1:D3}" -f $Source.Name, $Part })
       $ChunkPath = Join-Path $Staging $ChunkName
       $ChunkStream = [IO.File]::Open($ChunkPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write)
       try {
@@ -90,7 +93,7 @@ try {
     product = "luna"
     version = $Version
     platform = "windows-x64"
-    minimumInstrumentaVersion = "0.8.0"
+    minimumInstrumentaVersion = "0.10.0"
     installStrategy = "installed-desktop"
     installer = [ordered]@{
       asset = $Installer.Name

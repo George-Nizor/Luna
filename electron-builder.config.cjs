@@ -2,24 +2,9 @@ const path = require("node:path");
 
 const projectRoot = __dirname;
 const version = require("./package.json").version;
-const installedPayloadRoot = process.env.LUNA_INSTALLED_PAYLOAD_ROOT
-  ? path.resolve(process.env.LUNA_INSTALLED_PAYLOAD_ROOT)
-  : "";
-const pythonBase = installedPayloadRoot
-  ? path.join(installedPayloadRoot, "python")
-  : process.env.VOICE_STUDIO_PYTHON_BASE;
-if (!pythonBase) {
-  throw new Error("VOICE_STUDIO_PYTHON_BASE or LUNA_INSTALLED_PAYLOAD_ROOT must supply the local Python runtime.");
-}
 
-const includeModels = process.env.LUNA_INCLUDE_BUNDLED_MODELS === "true";
-
-const modelSource = installedPayloadRoot
-  ? path.join(installedPayloadRoot, "model-data", "models")
-  : path.join(projectRoot, "data", "models");
-const qwenSource = installedPayloadRoot
-  ? path.join(installedPayloadRoot, "model-data", "qwen")
-  : path.join(projectRoot, "build", "model-payload");
+// scripts/build_installer.ps1 downloads uv (pinned by SHA-256) and names its folder here.
+const uvDirectory = process.env.LUNA_UV_DIRECTORY ? path.resolve(process.env.LUNA_UV_DIRECTORY) : "";
 
 const extraResources = [
   {
@@ -28,22 +13,13 @@ const extraResources = [
     filter: ["**/*", "!**/__pycache__/**", "!**/*.pyc"],
   },
   { from: path.join(projectRoot, "run.py"), to: "backend/run.py" },
+  // What Luna's first-run setup installs from (electron/runtime-setup.cjs). No Python runtime ships.
   {
-    from: pythonBase,
-    to: "python",
-    filter: ["**/*", "!**/__pycache__/**", "!**/*.pyc", "!include/**", "!libs/**", "!Scripts/**",
-      ...(!includeModels ? ["!Lib/site-packages/rvc_python/base_model/**"] : [])],
+    from: path.join(projectRoot, "packaging", "runtime"),
+    to: "runtime",
+    filter: ["runtime-lock.json", "apply_patches.py", "verify_runtime.py", "wheels/*.whl"],
   },
-  ...(!installedPayloadRoot ? [{
-    from: path.join(projectRoot, ".venv", "Lib", "site-packages"),
-    to: "python/Lib/site-packages",
-    filter: ["**/*", "!**/__pycache__/**", "!**/*.pyc", "!**/*.pyo", "!**/tests/**", "!**/test/**",
-      ...(!includeModels ? ["!rvc_python/base_model/**"] : [])],
-  }] : []),
-  ...(includeModels ? [
-    { from: modelSource, to: "model-data/models", filter: ["**/*", "!.gitkeep"] },
-    { from: qwenSource, to: "model-data/qwen", filter: ["**/*"] },
-  ] : []),
+  ...(uvDirectory ? [{ from: uvDirectory, to: "runtime/uv", filter: ["uv.exe", "LICENSE-MIT", "LICENSE-APACHE"] }] : []),
   { from: path.join(projectRoot, "LICENSE"), to: "LICENSE.txt" },
   { from: path.join(projectRoot, "THIRD_PARTY_NOTICES.md"), to: "THIRD_PARTY_NOTICES.md" },
   { from: path.join(projectRoot, "assets", "luna-icon.png"), to: "assets/luna-icon.png" },
@@ -54,16 +30,17 @@ module.exports = {
   productName: "Luna",
   copyright: "Copyright © 2026",
   asar: true,
-  // ML weights and native CUDA libraries make recompression extremely slow.
-  // Store mode keeps release builds practical; the sidecar may be deleted
-  // after the application has been installed successfully.
-  compression: "store",
+  // The package is the app alone now (no Python, no CUDA libraries), so it compresses normally.
+  compression: "normal",
   directories: {
     output: "release",
     buildResources: "packaging",
   },
   files: [
     "electron/**/*",
+    // The setup screen is drawn with the brand v2 stylesheet and fonts before the backend exists.
+    "app/static/styles.css",
+    "app/static/brand/**/*",
     "package.json",
     "!**/*.map",
   ],
@@ -83,6 +60,8 @@ module.exports = {
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
     shortcutName: "Luna",
+    // Instrumenta reads the installed version from this record: "Luna <version>" plus DisplayVersion.
+    uninstallDisplayName: "${productName} ${version}",
     differentialPackage: false,
     deleteAppDataOnUninstall: false,
     installerIcon: path.join(projectRoot, "assets", "luna-icon.ico"),
@@ -90,8 +69,8 @@ module.exports = {
   },
   nsisWeb: {
     artifactName: "Luna-Installer-${version}.${ext}",
-    // Offline bundles resolve the checksum-bound package beside the installer.
-    // Replace this non-routable URL only when a real private release host exists.
+    // The installer uses the package beside it when present (Instrumenta puts it there) and otherwise
+    // downloads this release asset, so the installer alone is also a complete download.
     appPackageUrl: `https://github.com/George-Nizor/Luna/releases/download/v${version}/luna-${version}-x64.nsis.7z`,
   },
 };

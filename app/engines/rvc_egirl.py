@@ -16,7 +16,7 @@ import numpy as np
 import soundfile as sf
 
 from .base import GenerationResult
-from .qwen_clone import QwenCloneEngine
+from .qwen_clone import CudaUnavailableError, QwenCloneEngine
 
 
 def _patch_rvc_runtime_compat() -> None:
@@ -119,7 +119,9 @@ class EgirlRvcEngine:
         RVCInference = rvc_module.RVCInference
         self.cuda_active = bool(torch.cuda.is_available())
         if not self.cuda_active and not self.allow_cpu:
-            raise RuntimeError("CUDA is unavailable for the E-Girl RVC model. Set ALLOW_CPU=true for CPU mode.")
+            raise CudaUnavailableError(
+                "Luna cannot reach an NVIDIA GPU (CUDA is unavailable). Install or update the NVIDIA driver, version 570 or newer, then restart Luna."
+            )
         self.rvc = RVCInference(device="cuda:0" if self.cuda_active else "cpu")
         # Config remains in the runtime; HuBERT/RMVPE may have been preserved from an older installer.
         self.rvc.vc.lib_dir = str(base_directory.parent)

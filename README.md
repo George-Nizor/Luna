@@ -9,10 +9,17 @@ Private, local GPU voice generation.
 ![Luna in the dark theme: the voice visualiser, the text composer and the voice controls](docs/images/luna-studio-dark.png)
 
 Luna is a Windows desktop app for local GPU speech generation, launched from Instrumenta, the Start
-menu, or `Luna.exe`. It includes its Python runtime and opens a private backend in an Electron window.
-Text, reference recordings, profiles, and generated WAV files remain on your computer.
+menu, or `Luna.exe`. It opens a private backend in an Electron window. Text, reference recordings,
+profiles, and generated WAV files remain on your computer.
 
-Current source version: **0.4.1**.
+The installer is small (about 110 MB) and holds no Python. On first start Luna sets up its own
+runtime: Python 3.12 and the locked libraries it speaks with, PyTorch with CUDA 12.8 among them.
+That is a 3.02 GB download, once, which takes about 5 GB under `%LOCALAPPDATA%\Luna\runtime`. The
+setup screen shows the size, progress and speed; cancelling or a lost connection keeps what has
+arrived, and the next start resumes. Updates to Luna reuse the runtime unless its locked dependency
+set changes, in which case Luna sets up the new one and removes the old one after it works.
+
+Current source version: **0.6.0**.
 
 ## Choose voices and models
 
@@ -39,8 +46,9 @@ High mode on official Qwen speakers supports optional style directions. Fast doe
 control. An optional seed is saved with every generation so you can compare settings. Qwen-based voices also expose sampling temperature (0.2–1.2; default 0.7). Lower values are steadier; higher values add variation.
 
 New installations open the voice library when no selected voice is ready. Model loading never starts
-an implicit download. A compatible CUDA-capable NVIDIA GPU is required by default; larger models
-need more GPU memory. Use **Unload** when another application needs the GPU.
+an implicit download. An NVIDIA GPU with a current driver (570 or newer, for CUDA 12.8) is required;
+larger models need more GPU memory. Without one, setup still completes and says so, and generation
+reports that no GPU is reachable. Use **Unload** when another application needs the GPU.
 
 ## Text limits
 
@@ -70,7 +78,8 @@ selected output folders remain in the library. Exporting a WAV creates a separat
 generation removes its managed WAV and metadata.
 
 Settings and downloaded packs live under `%APPDATA%\Luna`; packs are in `data\model-packs`.
-Backend logs are in `logs\desktop-backend.log`. Uninstalling preserves your data.
+Backend logs are in `logs\desktop-backend.log`, runtime setup failures in `logs\runtime-setup.log`.
+The Python runtime lives under `%LOCALAPPDATA%\Luna\runtime`. Uninstalling preserves your data.
 
 ## Development and packaging
 
@@ -82,9 +91,10 @@ npm run pack
 npm run dist
 ```
 
-Installers omit optional model weights by default. Choose voices inside Luna after installation.
-The application runtime still includes CUDA dependencies, so the runtime payload is substantial.
-For an explicitly assembled local offline bundle, use `scripts\build_installer.ps1 -IncludeModels`.
+`scripts\setup_dev.ps1` builds `.venv` from the same lock the installed app uses
+(`packaging/runtime`), with uv. Installers contain the app, the backend source, the runtime lock and a
+pinned `uv.exe`; no Python, no CUDA libraries and no voice weights. How the runtime is locked, set
+up and released is in [Release assembly](docs/releasing.md).
 
 The verified developer downloader uses the same catalog:
 
@@ -111,8 +121,8 @@ Models, reference recordings, runtime payloads, logs, QA audio, and builds are e
 - [David XTTS source](https://huggingface.co/drewThomasson/xtts_David_Attenborough_fine_tune)
 - [E-Girl RVC source](https://voice-models.com/model/1uZvOaYhqJv)
 
-Source improvements do not publish or replace an installed release. Redistribution of the runtime,
-legacy recordings, and legacy weights retains the publication audit's separate requirements.
+Source improvements do not publish or replace an installed release. Luna no longer redistributes a
+Python runtime; legacy recordings and weights are still not redistributed (see the publication audit).
 
 ## Family
 

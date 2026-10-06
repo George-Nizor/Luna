@@ -2,7 +2,7 @@
 
 ## Product identity
 
-Luna 0.4.1 is a Windows x64 application. Its stable identity is:
+Luna 0.6.0 is a Windows x64 application. Its stable identity is:
 
 - Product, shortcut, installer, executable, and window title: `Luna`
 - Windows executable: `Luna.exe`
@@ -20,17 +20,24 @@ settings, caches, shortcuts, registry entry, or generated output.
 - Downloaded optional models: `%APPDATA%\Luna\data\model-packs`
 - Default generated output: `%USERPROFILE%\Documents\Luna`
 - Installed executable: the per-user directory selected by the Luna installer
+- Python runtime (since 0.6.0, set up by Luna on first start): `%LOCALAPPDATA%\Luna\runtime`, with
+  one CPython under `python` and one environment named by its lock hash. It holds no user data and is
+  rebuilt if removed.
 
-Uninstall removes the application and its registered shortcuts. It does not silently remove
+Uninstall removes the application, its registered shortcuts and, from 0.6.0, the Python runtime in
+`%LOCALAPPDATA%\Luna\runtime`. It does not silently remove
 `%APPDATA%\Luna` or generated audio. A deliberate cleanup can remove those only after the user has
 confirmed the content is disposable or backed up.
 
 ## Upgrading Luna
 
-The 0.4.1 installer preserves bundled voice weights from an existing Luna installation before
-invoking its uninstaller. It checks every copy by size and SHA-256 and stops before removal if a
+The installer preserves bundled voice weights from an existing Luna installation (0.3.0 and 0.4.x
+carried them in `resources\model-data`) before invoking its uninstaller. It checks every copy by size and SHA-256 and stops before removal if a
 copy fails or an existing preserved file differs. Settings, acquired packs, and generated output
-remain in their persistent locations. This is separate from the historical product rename below.
+remain in their persistent locations. The old uninstaller removes the previous program folder,
+including the Python runtime 0.3.0 and 0.4.x bundled in `resources\python`; 0.6.0 sets up its own on
+first start. The uninstall record keeps its key and becomes `Luna 0.6.0`, version 0.6.0, which is what
+Instrumenta reads. This is separate from the historical product rename below.
 
 ## Historical rename: clean reinstall checklist
 

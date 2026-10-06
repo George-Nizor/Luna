@@ -1,71 +1,78 @@
-# Luna 0.4.1 publication audit
+# Luna 0.6.0 publication audit
 
-Reviewed on 2026-10-02. This supersedes the local-only 0.4.0 runtime review.
+Reviewed on 2026-10-07. This supersedes the 0.4.1 audit, whose subject (a redistributed Python
+runtime) no longer exists.
 
-## Public payload
+## What Luna redistributes
 
-The source and public installer exclude voice recordings, voice packs, user data,
-model caches and generated audio. New installations acquire pinned official Qwen
-packs through Luna. Upgrades preserve existing local legacy voice files.
+The release assets contain:
 
-The old installed Python environment contained unrelated document tooling and
-mixed package metadata. The public runtime is assembled from the 121 explicit
-versions in `packaging/runtime-packages.json`. NumPy, pandas, setuptools,
-typing-inspection, urllib3 and lxml use checksum-verified PyPI wheels. All remaining
-wheel RECORD hashes were checked. Only two pre-existing modifications are allowed:
-Fairseq/Hydra Python 3.12 dataclass default factories; their hashes and diffs are recorded.
-Coqui permits Luna’s SoundFile IO without torchcodec. RVC receives two additional source patches: optional Praat import and SoundFile
-WAV decoding without PyAV. Legacy voice generation is rechecked in the final package.
+- Luna's own code (MIT): the Electron app, the backend in `resources\backend`, the runtime lock and
+  the scripts that install and check it;
+- Electron 43.4.0 with Chromium (`LICENSE.electron.txt`, `LICENSES.chromium.html` in the install);
+- uv 0.12.23 (`uv.exe`, MIT OR Apache-2.0, both licence texts in `resources\runtime\uv`), unmodified
+  and checked against the SHA-256 of uv's GitHub release;
+- three pure-Python wheels built from their PyPI source archives without modification: fairseq 0.12.2
+  (MIT), antlr4-python3-runtime 4.8 (BSD-3-Clause) and sox 1.5.0 (BSD-3-Clause). Each wheel carries
+  its licence in its `.dist-info`;
+- the brand fonts Fraunces, Commissioner and Spline Sans Mono (SIL OFL 1.1, licence texts beside the
+  files in `app/static/brand/fonts`).
 
-The runtime excludes artifact-tool-v2, unrelated document tooling, PyAV/FFmpeg,
-Praat, Gradio, pip and test/build tools. Each included distribution has preserved
-notices. LGPL/MPL sources, native audio build inputs and local patches accompany
-the release. The libsndfile DLL comes from the SoundFile 0.14.0 pinned binary
-submodule; its mpg123 build-path hash matches vcpkg 2024.12.16's source/patch set.
-Native codec versions are libsndfile 1.2.2, FLAC 1.4.3, Ogg 1.3.5, Vorbis 1.3.7,
-Opus 1.5.2, mpg123 1.32.9 and LAME 3.100. Source archive hashes/URLs are recorded
-in `packaging/runtime-sources.json`. CUDA/cuDNN redistributable notices are retained.
+It no longer contains CPython, PyTorch, the NVIDIA CUDA and cuDNN libraries inside PyTorch's wheel,
+SoundFile/libsndfile, or any other Python distribution. Each Luna installation downloads those itself
+from their publishers (python-build-standalone through uv, the Python Package Index, PyTorch's
+download server) under their own licences. The runtime source archive, the 121-package licence
+inventory and the CUDA notices that 0.4.1 attached are therefore not part of this release.
+
+The source and installer contain no voice recordings, voice packs, user data, model caches or
+generated audio. New installations acquire pinned official Qwen packs through Luna. Upgrades preserve
+existing local legacy voice files; they are not redistributed.
+
+## The runtime each installation sets up
+
+`packaging/runtime/uv.lock` fixes 96 wheels and their SHA-256 digests; Luna verifies each download
+and uv verifies it again at install time. Versions are those of the reviewed 0.4.1 runtime, with
+Python 3.12.15 in place of 3.12.13. Removed compared with 0.4.1, none of them imported by Luna: the
+leftovers of the excluded Gradio demo (pandas, pytz, tzdata, typer, rich, markdown-it-py, mdurl,
+Pygments, shellingham, brotli, orjson, pydub, semantic-version, tomlkit, httpx, httpcore,
+cryptography), uvicorn's optional extras (httptools, websockets, watchfiles, python-dotenv),
+tensorboardX, and, found by tracing all four engines through real generation, ffmpeg-python, loguru
+and monotonic-alignment-search. llvmlite/numba, torchcrepe, faiss-cpu, scikit-learn, matplotlib and
+onnxruntime stay: each is imported on a generation path.
+
+Luna applies the same five source changes as 0.4.1, after installation and on the user's machine
+(`packaging/runtime/apply_patches.py`): Python 3.12 dataclass defaults in fairseq and Hydra, Praat
+imported only for RVC's unused `pm` mode, RVC's WAV input read with SoundFile instead of PyAV, and
+Coqui's torchcodec import guard removed. Each file must match the pinned upstream hash before the
+change and the reviewed hash after it. PyAV, Praat, torchcodec, Gradio and TensorBoard are not
+installed.
 
 ## Advisory review and retained compatibility dependencies
 
-PyPI package/version metadata was checked with the owner's permission. urllib3
-was upgraded to 2.8.0 to resolve the returned advisories. This is not a claim that
-all packaged dependencies are free of known advisories. The release retains:
+The package versions are unchanged from 0.4.1, so its advisory review still applies:
 
-- Accelerate 1.12.0: GHSA-4j2p-28q2-5m79, untrusted shard-index paths. Luna
-  acquires only the hash-pinned official catalogue; arbitrary model URLs are rejected.
-- Hydra 1.0.7: GHSA-2cp2-2r3c-7p7r, untrusted `instantiate` targets. Required by
-  legacy Fairseq; Luna exposes no config-instantiation or arbitrary YAML endpoint.
-- PyTorch 2.11.0: GHSA-rrmf-rvhw-rf47, `torch.jit.script`. Luna does not accept
-  user-provided Python/JIT source. Existing legacy pickle checkpoints remain trusted
-  local inputs; no claim of safe loading of untrusted pickle files is made.
-- Transformers 4.57.3: GHSA-69w3-r845-3855, GHSA-29pf-2h5f-8g72,
-  GHSA-fgcw-684q-jj6r, GHSA-x9r9-c232-4q39 and GHSA-xrqw-3rrv-vx5w.
-  Affected training, LightGlue, custom remote generation and saving untrusted
-  tokenizer templates are not exposed. Inference uses local pinned model files,
-  no remote Python code and no arbitrary model-repository input.
-- Setuptools 78.1.0: GHSA-5rjg-fvgr-3xxf and GHSA-h35f-9h28-mq5c concern
-  package downloads/source builds. Retained for legacy imports; Luna offers no
-  package installation/build endpoint and ships no pip.
+- Accelerate 1.12.0: GHSA-4j2p-28q2-5m79, untrusted shard-index paths. Luna acquires only the
+  hash-pinned official catalogue; arbitrary model URLs are rejected.
+- Hydra 1.0.7: GHSA-2cp2-2r3c-7p7r, untrusted `instantiate` targets. Required by legacy Fairseq;
+  Luna exposes no config-instantiation or arbitrary YAML endpoint.
+- PyTorch 2.11.0: GHSA-rrmf-rvhw-rf47, `torch.jit.script`. Luna accepts no user Python or JIT
+  source. Existing legacy pickle checkpoints remain trusted local inputs.
+- Transformers 4.57.3: GHSA-69w3-r845-3855, GHSA-29pf-2h5f-8g72, GHSA-fgcw-684q-jj6r,
+  GHSA-x9r9-c232-4q39 and GHSA-xrqw-3rrv-vx5w. Training, LightGlue, remote code and saving untrusted
+  tokenizer templates are not exposed.
+- Setuptools 78.1.0: GHSA-5rjg-fvgr-3xxf and GHSA-h35f-9h28-mq5c concern package downloads and source
+  builds. Luna offers no package installation endpoint; its runtime setup installs only locked,
+  hash-checked wheels with source builds disabled.
 
-The loopback API requires a per-session token. The model downloader verifies each
-catalogue file. Library deletion/export/reveal operations resolve registered outputs
-and enforce their allowed roots. The public runtime gate verifies all file hashes,
-package pins and licence records before packaging. Review exceptions again when
-changing model imports, adding arbitrary model acquisition, or updating the ML stack.
+The loopback API requires a per-session token. The model downloader verifies each catalogue file.
+Library deletion, export and reveal resolve registered outputs within their allowed roots.
 
 ## Release verification
 
-The 0.4.0 local package passed first-run, upgrade preservation (37 files), five real
-GPU voice generations, long-text completion, preview/export/reveal/reuse/delete and
-installed identity checks. The cleaned 0.4.1 package repeats real inference and
-library checks; the release notes record final results. Release assets are assembled
-with Instrumenta's shared manifest writer and verified against their actual SHA-256.
-No source, model, recording or credential was sent for the package advisory lookup.
-
-Final packaged validation: 47 Windows backend tests, 46 portable tests (one
-Windows-only skip), two desktop file-action tests and five real CUDA generations
-passed. Fast and High select distinct 0.6B/1.7B checkpoints. The 983-character
-passage produced ten segments and 78.66 seconds. Clean first-run, the eleven
-available voices with preserved local assets, preview, native WAV export,
-reveal bridge, parameter reuse and deletion during playback passed.
+On Windows 11 with an RTX 4080 SUPER (driver 617.14), from the built package with isolated data and
+runtime folders: a real first-run setup (3.02 GB in about 1.5 minutes, 2 minutes 38 seconds to a
+verified runtime), a cancelled and resumed setup across a restart, the switch from a stale runtime
+with its removal, the no-GPU path (`CUDA_VISIBLE_DEVICES=-1`), real GPU generation with a Qwen
+CustomVoice speaker, David (XTTS) and E-Girl (RVC) through the running app, Qwen cloning and all four
+engines traced in-process, a second start with no download, and an installer upgrade from a build
+carrying a bundled `resources\python` (under a throwaway app identity) that left no Python behind.

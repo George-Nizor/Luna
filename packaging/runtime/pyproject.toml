@@ -1,0 +1,102 @@
+# The Python runtime Luna installs for itself on first start (electron/runtime-setup.cjs).
+#
+# This is not the Luna package: it is a dependency-only uv project whose lock file is the exact,
+# hashed set of wheels Luna downloads into %LOCALAPPDATA%\Luna\runtime. Change it with
+#   uv lock --project packaging/runtime
+#   python scripts/runtime_lock.py
+# and commit pyproject.toml, uv.lock and runtime-lock.json together; the tests refuse a stale
+# runtime-lock.json. Any change to the resolved set gives a new lock hash, so installed copies of
+# Luna set up a new environment on their next start.
+[project]
+name = "luna-runtime"
+version = "0"
+requires-python = "==3.12.*"
+dependencies = [
+  # Local backend service.
+  "fastapi==0.141.1",
+  "uvicorn==0.52.3",
+  "pydantic==2.13.4",
+  "python-multipart==0.0.32",
+  "soundfile==0.14.0",
+  "numpy==2.5.2",
+  "psutil==7.2.2",
+  "huggingface-hub==0.36.2",
+  # GPU inference: PyTorch's CUDA 12.8 build, from PyTorch's own index.
+  "torch==2.11.0+cu128",
+  "torchaudio==2.11.0+cu128",
+  # Official Qwen voices and voice cloning.
+  "qwen-tts==0.1.1",
+  "transformers==4.57.3",
+  "accelerate==1.12.0",
+  "librosa==1.0.0",
+  # Legacy local voices preserved from older installations: David (XTTS) and E-Girl (RVC).
+  "coqui-tts==0.27.5",
+  "rvc-python==0.1.5",
+  "fairseq==0.12.2",
+]
+
+[tool.uv]
+package = false
+required-version = ">=0.12.23"
+environments = ["sys_platform == 'win32' and platform_machine == 'AMD64'"]
+required-environments = ["sys_platform == 'win32' and platform_machine == 'AMD64'"]
+
+# Keep every shared dependency at the version reviewed for Luna 0.4.1.
+constraint-dependencies = [
+  "annotated-doc==0.0.5", "annotated-types==0.8.0", "antlr4-python3-runtime==4.8", "anyascii==0.3.3",
+  "anyio==4.14.2", "bitarray==3.10.1", "certifi==2026.7.22", "cffi==2.1.1", "charset-normalizer==3.5.0",
+  "click==8.4.2", "colorama==0.4.6", "contourpy==1.3.3", "coqpit-config==0.2.5", "cycler==0.12.1",
+  "decorator==5.3.1", "einops==0.8.2", "faiss-cpu==1.15.0", "filelock==3.29.0",
+  "flatbuffers==25.12.19", "fonttools==4.63.0", "fsspec==2026.4.0", "h11==0.16.0", "hydra-core==1.0.7",
+  "idna==3.18", "inflect==7.5.0", "jinja2==3.1.6", "joblib==1.5.3", "kiwisolver==1.5.0",
+  "ko-speech-tools==0.1.0", "lazy-loader==0.5", "llvmlite==0.49.0", "lxml==6.1.1",
+  "markupsafe==3.0.3", "matplotlib==3.11.1", "more-itertools==11.1.0",
+  "mpmath==1.3.0", "msgpack==1.2.1", "narwhals==2.24.0", "networkx==3.6.1", "num2words==0.5.14",
+  "numba==0.67.0", "onnxruntime==1.28.0", "packaging==26.3", "pillow==12.3.0", "platformdirs==4.11.3",
+  "pooch==1.9.0", "portalocker==4.1.0", "protobuf==7.35.1", "pycparser==3.0", "pydantic-core==2.46.4",
+  "pyparsing==3.3.2", "pysbd==0.3.4", "python-dateutil==2.9.0.post0", "pyworld==0.3.5", "pyyaml==6.0.3",
+  "regex==2026.7.19", "requests==2.34.2", "resampy==0.4.3", "sacrebleu==2.6.0", "safetensors==0.8.0",
+  "scikit-learn==1.9.0", "scipy==1.18.0", "setuptools==78.1.0", "six==1.17.0", "sox==1.5.0", "soxr==1.1.0",
+  "starlette==1.6.0", "sympy==1.14.0", "tabulate==0.10.0", "threadpoolctl==3.6.0", "tokenizers==0.22.2",
+  "torchcrepe==0.0.24", "tqdm==4.70.0", "typeguard==4.6.0", "typing-extensions==4.16.0",
+  "typing-inspection==0.4.4", "tzdata==2026.3", "urllib3==2.8.0",
+]
+
+# Upstream pins that cannot be met on Python 3.12 with this stack. Each replacement is the version
+# Luna 0.4.1 shipped and validated with real generation.
+override-dependencies = [
+  "numpy==2.5.2",              # rvc-python asks for numpy<=1.23.5 (no Python 3.12 wheels)
+  "omegaconf==2.1.2",          # rvc-python, fairseq and hydra ask for <2.1; 2.0.x has invalid metadata
+  "faiss-cpu==1.15.0",         # rvc-python asks for 1.7.3 (no Python 3.12 wheels)
+  "coqui-tts-trainer==0.4.0",  # coqui-tts asks for <0.4.0
+]
+
+# Declared upstream, never imported by Luna: gradio, av, praat-parselmouth, tensorboard and cython were
+# already left out of 0.4.1; the rest were found by tracing every engine through a real generation.
+exclude-dependencies = [
+  "gradio",             # qwen-tts web demo
+  "av",                 # rvc-python media decoding; Luna hands RVC a WAV read with SoundFile
+  "praat-parselmouth",  # rvc-python "pm" pitch method; Luna uses RMVPE
+  "tensorboard",        # coqui-tts-trainer training logs
+  "cython",             # fairseq build-time requirement listed as a runtime one
+  "aiohttp",            # fsspec[http] via coqui-tts; Luna loads only local files
+  "docopt",             # num2words command-line tool
+  "ffmpeg-python",      # rvc-python media conversion; never imported by inference
+  "future",             # ffmpeg-python's Python 2 compatibility layer
+  "loguru",             # rvc-python's HTTP API server logging; not imported by inference
+  "monotonic-alignment-search",  # coqui-tts VITS/Glow-TTS training; XTTS does not use it
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+# None of these three publishes a wheel for Python 3.12 on Windows. Each is built from its PyPI source
+# archive as a pure-Python wheel (scripts/build_runtime_wheels.py) and ships inside the installer.
+fairseq = { path = "wheels/fairseq-0.12.2-py3-none-any.whl" }
+antlr4-python3-runtime = { path = "wheels/antlr4_python3_runtime-4.8-py3-none-any.whl" }
+sox = { path = "wheels/sox-1.5.0-py3-none-any.whl" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Luna</title>
+  <link rel="stylesheet" href="../../app/static/brand/fonts/fonts.css">
+  <link rel="stylesheet" href="../../app/static/styles.css">
+  <link rel="stylesheet" href="setup.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="luna-brand-mark"><img src="../../app/static/brand/luna.svg" alt="" width="40" height="40"></span>
+      <span class="wordmark">Luna</span>
+    </div>
+    <span class="setup-version mono" id="version"></span>
+  </header>
+
+  <main class="setup">
+    <section class="setup-panel" aria-labelledby="setup-title" aria-live="polite">
+      <h1 id="setup-title">Setting up Luna's voice engine</h1>
+      <p id="setup-lead" class="setup-lead">Checking what is needed…</p>
+
+      <dl class="setup-facts" id="facts" hidden>
+        <div><dt>Download</dt><dd id="fact-download" class="mono"></dd></div>
+        <div><dt>On disk</dt><dd id="fact-disk" class="mono"></dd></div>
+        <div><dt>GPU</dt><dd id="fact-gpu"></dd></div>
+        <div><dt>Location</dt><dd id="fact-location" class="mono"></dd></div>
+      </dl>
+
+      <p class="setup-note" id="gpu-warning" hidden></p>
+
+      <ol class="setup-steps" id="steps" hidden>
+        <li data-step="python"><span class="step-dot"></span><span id="step-python-label">Python</span></li>
+        <li data-step="download"><span class="step-dot"></span><span>Download the voice engine</span></li>
+        <li data-step="install"><span class="step-dot"></span><span>Install</span></li>
+        <li data-step="verify"><span class="step-dot"></span><span>Check it works</span></li>
+      </ol>
+
+      <div class="setup-meter" id="meter" hidden>
+        <div class="meter-track" role="progressbar" aria-label="Download progress" aria-valuemin="0" aria-valuemax="100" id="meter-bar"><span id="meter-fill"></span></div>
+        <div class="meter-line">
+          <span id="meter-bytes" class="mono"></span>
+          <span id="meter-rate" class="mono"></span>
+        </div>
+        <div class="meter-detail mono" id="meter-detail"></div>
+      </div>
+
+      <pre class="setup-error" id="error" hidden></pre>
+
+      <div class="setup-actions">
+        <button class="btn" type="button" id="secondary" hidden>Quit</button>
+        <button class="btn primary" type="button" id="primary" hidden>Download and set up</button>
+      </div>
+
+      <p class="setup-foot" id="foot">Luna installs Python and its libraries for itself, once, from the Python Package Index, PyTorch's download server and the CPython builds uv uses. Every file is checked against the SHA-256 recorded in this release. Your settings, voices and recordings are not touched.</p>
+    </section>
+  </main>
+  <script src="setup.js"></script>
+</body>
+</html>

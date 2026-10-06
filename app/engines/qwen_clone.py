@@ -63,7 +63,9 @@ class QwenCloneEngine:
         self.torch = torch
         cuda_available = bool(torch.cuda.is_available())
         if not cuda_available and not self.allow_cpu:
-            raise CudaUnavailableError("CUDA is unavailable. Install CUDA-enabled PyTorch or set ALLOW_CPU=true.")
+            raise CudaUnavailableError(
+                "Luna cannot reach an NVIDIA GPU (CUDA is unavailable). Install or update the NVIDIA driver, version 570 or newer, then restart Luna."
+            )
         device = "cuda:0" if cuda_available else "cpu"
         self.cuda_active = cuda_available
         dtype = torch.float32

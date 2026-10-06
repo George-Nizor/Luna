@@ -1,15 +1,82 @@
-# Luna release and payload assembly
+# Luna release and runtime assembly
 
 ## Source-only repository
 
 The public repository contains application source, tests, packaging scripts, manifests, notices,
 and documentation. It excludes `.venv`, `node_modules`, model and voice payloads, Hugging Face caches,
-logs, generated audio, temporary flattened snapshots, build directories, installers, and release
-artifacts. Reference audio is publishable only when its ownership and redistribution permission are
-recorded; otherwise it remains ignored and is supplied through the private release-assembly input.
+logs, generated audio, build directories, installers, and release artifacts. Reference audio is
+publishable only when its ownership and redistribution permission are recorded; otherwise it remains
+ignored.
 
-Before publication, run secret, generated-file, dependency-license, and asset-redistribution audits.
-Preserve third-party notices and do not apply the MIT license to third-party models or recordings.
+Three pure-Python wheels are committed on purpose, in `packaging/runtime/wheels` (see below).
+
+## What a release contains
+
+Since 0.6.0 the installer carries no Python runtime. A release is:
+
+- `Luna-Installer-<version>.exe`, the NSIS web installer (under 1 MB);
+- `luna-<version>-x64.nsis.7z`, the app package (about 110 MB): Electron, the backend source, the
+  runtime lock, three bundled wheels, `apply_patches.py`, `verify_runtime.py` and `uv.exe`;
+- `instrumenta-release.json`, `SHA256SUMS.txt`, `LICENSE` and `THIRD_PARTY_NOTICES.md`.
+
+Run alone, the installer uses the package beside it or downloads it from the same release
+(`nsisWeb.appPackageUrl`). Instrumenta downloads both, verifies them and runs the installer.
+
+## The runtime Luna installs for itself
+
+`packaging/runtime` is a dependency-only uv project. `pyproject.toml` pins every package (the versions
+the 0.4.1 runtime was reviewed and validated with), takes PyTorch 2.11.0+cu128 from PyTorch's own index,
+overrides four upstream pins that cannot be met on Python 3.12 and excludes declared dependencies Luna
+never imports. `uv.lock` is the resolution, with a SHA-256 for every file.
+
+`scripts/runtime_lock.py` turns the lock into `runtime-lock.json`: for CPython 3.12 on Windows x64 it
+picks one wheel per package (96 of them, 3.02 GB) with URL, size and SHA-256, and derives the lock
+hash that names the environment. Electron reads only that file.
+
+On first start, and whenever the lock hash changes, `electron/runtime-setup.cjs`:
+
+1. installs the pinned CPython with `uv python install` into `%LOCALAPPDATA%\Luna\runtime\python`;
+2. downloads every wheel into `runtime\downloads` itself, resuming with HTTP Range and checking size
+   and SHA-256, so the setup screen can show real progress and continue after a restart;
+3. creates `runtime\<lock hash>.partial` with `uv venv` and installs with
+   `uv pip sync --require-hashes --offline --no-index --no-build` from those files and the bundled
+   wheels, so uv checks every hash again and can neither resolve nor fetch anything else;
+4. applies `apply_patches.py` (the five reviewed source changes 0.4.1 carried, each pinned to the
+   upstream and the patched SHA-256) and runs `verify_runtime.py`: every locked distribution at its
+   version and nothing else, every engine's modules importable, and whether PyTorch reaches a GPU;
+5. renames the folder to `runtime\<lock hash>`, writes its marker and replaces `current.json` in one
+   rename. Only then are the previous environment, the downloaded wheels, uv's cache
+   (`runtime\cache`, used only during setup) and unreferenced Pythons removed.
+
+One environment, one CPython and no wheel archive remain afterwards (about 5 GB). The backend runs
+from `runtime\<lock hash>\Scripts\python.exe`. A missing GPU is reported on the setup screen and by
+generation; it does not stop setup.
+
+Why Luna downloads the wheels instead of letting `uv sync` do it: uv shows no byte progress when it
+has no terminal and restarts an interrupted file from zero. The torch wheel alone is 2.75 GB.
+
+### Changing the runtime
+
+```bash
+# from the repository root, with uv 0.12.23 or newer
+uv lock --project packaging/runtime
+python scripts/runtime_lock.py          # asks PyTorch's index for the sizes uv.lock lacks
+python -m pytest tests/test_runtime_lock.py
+```
+
+Commit `pyproject.toml`, `uv.lock` and `runtime-lock.json` together; the tests refuse a stale plan.
+A changed set gives a new lock hash, and every installed Luna sets up the new environment once. Run
+a real first-run setup on Windows and generate with each engine before releasing such a change:
+`verify_runtime.py` proves imports, not speech.
+
+fairseq 0.12.2, antlr4-python3-runtime 4.8 and sox 1.5.0 publish no wheel for Python 3.12 on Windows.
+`scripts/build_runtime_wheels.py` builds each from its PyPI source archive (pinned by SHA-256) as a
+pure-Python wheel; fairseq is built with its own `READTHEDOCS` switch, which leaves out its native
+extensions, as in 0.4.1. The build is reproducible (`SOURCE_DATE_EPOCH`), and uv.lock pins the hashes.
+
+`build_installer.ps1` bundles uv 0.12.23 (`uv.exe` and its licences), downloaded from uv's GitHub
+release and checked against a pinned SHA-256. Keep `UV_VERSION` in `scripts/runtime_lock.py` and
+the script's pin in step.
 
 ## Build
 
@@ -21,79 +88,51 @@ npm test
 npm run dist
 ```
 
-The default build includes the application and Python/CUDA runtime, with optional voice weights acquired inside Luna. Use `-IncludeModels` for an explicit offline model bundle. It creates the NSIS installer and sidecar payload, then invokes
-`scripts/split_release_assets.ps1`. The splitter writes uploadable assets to
-`release\publish\v0.4.1` without modifying source inputs.
+`npm run pack` builds `release\win-unpacked` only. `npm run dist` builds the installer and package and
+runs `scripts/split_release_assets.ps1`, which writes the assets to `release\publish\v<version>`
+without modifying its inputs.
 
-### Local-only rebuild from an installed payload
+## Instrumenta packaging
 
-An owner may rebuild Luna locally from a previously installed, complete Luna payload while replacing
-the application and backend code with the current source checkout:
+`npm run package:instrumenta` (`scripts/package_instrumenta.ps1`) copies the checkout to a Windows
+build folder (`-BuildDirectory`, default `%LOCALAPPDATA%\Luna\package-workspace\<version>`), builds
+there, splits the package and runs Instrumenta's shared `scripts/instrumenta-release.cjs`
+writer/validator over the real files, with `-NotesFile` for the launcher's "What's new". It then
+writes `SHA256SUMS.txt`. It never publishes and never overwrites existing assets. Set
+`LUNA_USER_DATA_DIRECTORY` and `LUNA_RUNTIME_ROOT` to absolute test folders to run the built
+`win-unpacked\Luna.exe` without touching an installed Luna's data or runtime.
 
-```powershell
-.\scripts\build_installer.ps1 `
-  -InstalledPayloadRoot "$env:LOCALAPPDATA\Programs\Luna\resources" `
-  -SkipReleaseSplit `
-  -IncludeModels
-```
+## Payload contract
 
-This recovery path copies the installed portable Python runtime, models, and voice assets into a new
-local installer. It bypasses public release splitting intentionally and **must not be used for a
-public release**. Do not upload, redistribute, or retain its sidecar beyond the local installation
-unless every included third-party model and recording has been cleared for redistribution.
+A package below 1.9 GiB, Luna's since 0.6.0, is published as one asset under its own name,
+`luna-<version>-x64.nsis.7z`, which is also the manifest's single chunk. Larger packages are split into
+numbered `.partNNN` chunks below GitHub's 2 GiB limit. `instrumenta-release.json` records the installer,
+the assembled payload and its chunks with exact sizes and lowercase SHA-256 digests.
 
-## Instrumenta packaging from this suite
+The single-chunk form needs Instrumenta 0.10.0 or newer: from that version the launcher reuses a
+verified file already at the assembled path instead of refusing to replace it. Luna's
+`minimumInstrumentaVersion` is 0.10.0 accordingly.
 
-`npm run package:instrumenta` mirrors the current source onto a Windows drive, reuses the locally
-installed Python runtime, builds without bundled voices, splits the payload, and runs Instrumenta's
-shared `scripts/instrumenta-release.cjs` writer/validator over the real assets. It does not publish.
-Pass `-BuildDirectory` and `-InstalledPayloadRoot` to `scripts/package_instrumenta.ps1` to override
-its local staging/runtime paths. Its output is `release/publish/v<package version>`; existing release
-assets are never overwritten. Keep the native staging folder while testing its `win-unpacked` app. Set
-`LUNA_USER_DATA_DIRECTORY` to an absolute test folder for an isolated packaged run; Windows
-Electron resolves AppData through the shell and does not use an `APPDATA` override for this path.
-For publication, first assemble a new runtime with `scripts/prepare_public_runtime.py`
-using the reviewed package plan, verified wheel overlays and supplemental notices.
-Preserve its source archive and licence inventory. Pass `-PublicRelease` and that
-runtime's parent as `-InstalledPayloadRoot`; the public gate verifies package pins,
-licence files and every recorded SHA-256 before building. An unreviewed installed
-runtime is suitable only for a local recovery build. See `publication-audit.md`.
+## Upgrades
 
 An upgrade preserves old bundled model files in `%APPDATA%\luna\data\legacy` before the old
-uninstaller runs. Every copied file is checked by size and SHA-256; a conflict or copy failure stops
-installation before removal. David, E-Girl and bundled Qwen Base checkpoints then load from that
-persistent location. New installations acquire the optional official packs through the voice library.
-
-## Multipart contract
-
-GitHub release assets must remain below 2 GiB. Luna uses 1.9 GiB maximum numbered parts:
-
-```text
-luna-0.4.1-x64.nsis.7z.part001
-luna-0.4.1-x64.nsis.7z.part002
-...
-```
-
-`instrumenta-release.json` records the installer, assembled payload, ordered chunks, exact byte
-sizes, and lowercase SHA-256 digests. Instrumenta downloads each chunk to a partial file, resumes
-with HTTP Range when supported, retries only the failed chunk, checks available disk space, verifies
-every chunk, assembles into a new temporary file, verifies the complete payload, then invokes the
-installer. Corrupt or incomplete assets are never executed. Failed staging content is safe to clean
-up because the installed application and source tree are separate.
+uninstaller runs (`packaging/installer.nsh`, `preserve_legacy.py`, using the old installation's own
+Python). Every copied file is checked by size and SHA-256; a conflict or copy failure stops the
+installation before removal. The old uninstaller then removes the previous program folder, including
+a bundled `resources\python`; `customInstall` deletes any remainder. Settings, packs, profiles and
+history in `%APPDATA%\luna` are not touched. The first start of the new version sets up the runtime.
 
 ## Release checklist
 
-1. Confirm package, Python, Electron, installer, product manifest, and documentation versions are
-   all 0.4.1.
-2. Run the identity audit and complete backend/UI tests.
-3. Build on Windows x64 and test insufficient-space, resume, retry, and corrupt-chunk behavior.
-4. Reconstruct the payload from the publish directory and compare its SHA-256 to the source sidecar.
-5. Install on a clean account, generate and play audio, uninstall, and confirm the old identity is
-   absent.
-6. Attach the installer, every numbered part, `instrumenta-release.json`, license, and third-party
-   notices to the GitHub Release.
-7. Download the public assets into a new directory and verify all hashes again before marking the
-   release stable.
+1. Version 0.x.y in `package.json` and its lock, `pyproject.toml`, `app/__init__.py`,
+   `instrumenta/product.json`, the release template and the README.
+2. `npm test` on Windows (or pytest, ruff and `node --test tests-electron/*.test.cjs`).
+3. `scripts/package_instrumenta.ps1 -NotesFile <notes>`.
+4. Run the built app with isolated `LUNA_USER_DATA_DIRECTORY` and `LUNA_RUNTIME_ROOT`: real
+   first-run setup, a GPU generation, a second start without downloads.
+5. Tag `v<version>` with the notes as its message, publish the GitHub release with every file in the
+   publish folder, then download `instrumenta-release.json` from `releases/latest` and check every
+   size and SHA-256 against the published files.
 
 GitHub Releases are canonical. A sibling source checkout is a manual developer override and never a
 replacement for the release artifacts.

@@ -1,34 +1,62 @@
-# Third-party notices — Luna 0.4.1
+# Third-party notices — Luna 0.6.0
 
-Luna application code is MIT. Electron, CPython and all included libraries retain
-their own licences. The installer includes Electron's licence and Chromium notices,
-CPython's licence, and `resources/python/THIRD_PARTY_LICENSES` with notices for the
-121 reviewed Python distributions and their bundled native dependencies.
-`resources/python/runtime-manifest.json` records the exact package versions.
+Luna application code is MIT ([LICENSE](LICENSE)). The installer also carries these components, each
+under its own licence:
 
-Most dependencies use MIT, BSD or Apache-2.0. Coqui TTS and other MPL components
-retain their source and notices. SoundFile/libsndfile, libsoxr, num2words, and
-native audio codecs include LGPL components. The matching release provides
-`Luna-0.4.1-runtime-sources.zip`: source archives, applicable build recipes and
-Luna's compatibility patches. Pure Python source also remains in the runtime.
-The dynamically loaded libraries can be replaced with compatible modified builds;
-Luna imposes no restriction on reverse engineering to debug those modifications.
-See the source archive README for build and replacement locations.
+- **Electron 43.4.0 and Chromium.** MIT for Electron; Chromium's notices are installed beside
+  `Luna.exe` as `LICENSE.electron.txt` and `LICENSES.chromium.html`.
+- **uv 0.12.23** by Astral Software Inc., unmodified, MIT OR Apache-2.0. Both licence texts are in
+  `resources\runtime\uv`. Notices for the Rust crates compiled into uv are in its source:
+  https://github.com/astral-sh/uv/tree/0.12.23
+- **fairseq 0.12.2** (MIT, Facebook, Inc. and its affiliates), **antlr4-python3-runtime 4.8**
+  (BSD-3-Clause, The ANTLR Project) and **sox 1.5.0** (BSD-3-Clause, Rachel Bittner and contributors),
+  as wheels built from their unmodified PyPI source archives in `resources\runtime\wheels`. The
+  fairseq and sox wheels carry their licences in `.dist-info`; the ANTLR runtime's source archive
+  ships none, so its licence (from ANTLR's 4.8 repository) is reproduced at the end of this file.
+- **Fraunces, Commissioner and Spline Sans Mono**, SIL Open Font License 1.1, with their licence
+  texts in `app/static/brand/fonts`.
 
-PyTorch bundles NVIDIA CUDA 12.8 and cuDNN redistributable runtime components.
-Their upstream EULAs and PyTorch's third-party notices accompany this distribution.
-No NVIDIA driver or development toolkit is included.
+Luna does not redistribute Python, PyTorch, NVIDIA's CUDA libraries or other Python packages. On first
+start each installation downloads CPython 3.12 (python-build-standalone, through uv) and the wheels
+listed in `resources\runtime\runtime-lock.json` from the Python Package Index and PyTorch's download
+server, under their publishers' licences, and checks every file against the SHA-256 in that list.
+After installing them Luna makes five small source changes on the user's machine (listed in
+`resources\runtime\apply_patches.py`); the changed files are never redistributed.
 
-The public installer contains no voice recordings or voice model packs. Users
-choose official Qwen packs in the voice library; pinned revisions, download sizes,
-SHA-256 checksums and Apache-2.0 notices are recorded by the catalogue. Existing
-David/XTTS and E-Girl/RVC files are retained locally on upgrade. Their recordings
-and voice weights are not redistributed by this release.
+The release contains no voice recordings or voice model packs. Users choose official Qwen packs in
+the voice library; pinned revisions, download sizes, SHA-256 checksums and Apache-2.0 notices are
+recorded by the catalogue. Existing David/XTTS and E-Girl/RVC files are retained locally on upgrade
+and are not redistributed.
 
-The former installed runtime also contained unrelated document-generation tools.
-Those tools, PyAV/FFmpeg, Praat, demo interfaces and package installation utilities
-are excluded from this public build. RVC reads Luna's generated WAV files with
-SoundFile. Exact source patches are in `packaging/runtime-patches`.
+Sources and release assets: https://github.com/George-Nizor/Luna/releases/tag/v0.6.0
 
-Sources and release assets:
-https://github.com/George-Nizor/Luna/releases/tag/v0.4.1
+## ANTLR 4.8 runtime licence
+
+```text
+[The "BSD 3-clause license"]
+Copyright (c) 2012-2017 The ANTLR Project. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+ 3. Neither the name of the copyright holder nor the names of its contributors
+    may be used to endorse or promote products derived from this software
+    without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```

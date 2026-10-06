@@ -23,20 +23,12 @@ test("desktop actions accept only existing output UUIDs within the output folder
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test("packaging starts without preinstalled weights and includes the curated manifest", () => {
+test("packaging starts without preinstalled weights", () => {
   const root = path.resolve(__dirname, "..");
   const main = fs.readFileSync(path.join(root, "electron/main.cjs"), "utf8");
   assert(!main.includes("requiredPaths.push(paths.qwenFast"));
-  const previous = process.env.LUNA_INSTALLED_PAYLOAD_ROOT;
-  process.env.LUNA_INSTALLED_PAYLOAD_ROOT = root;
-  process.env.LUNA_INCLUDE_BUNDLED_MODELS = "false";
-  try {
-    const config = require("../electron-builder.config.cjs");
-    assert(!config.extraResources.some((entry) => entry.to.startsWith("model-data/")));
-    assert(config.extraResources.some((entry) => entry.to === "backend/app"));
-  } finally {
-    if (previous === undefined) delete process.env.LUNA_INSTALLED_PAYLOAD_ROOT;
-    else process.env.LUNA_INSTALLED_PAYLOAD_ROOT = previous;
-    delete process.env.LUNA_INCLUDE_BUNDLED_MODELS;
-  }
+  delete require.cache[require.resolve("../electron-builder.config.cjs")];
+  const config = require("../electron-builder.config.cjs");
+  assert(!config.extraResources.some((entry) => entry.to.startsWith("model-data")));
+  assert(config.extraResources.some((entry) => entry.to === "backend/app"));
 });

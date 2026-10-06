@@ -28,8 +28,8 @@ logs/*
 # This fixed voice reference must be supplied by a user who has redistribution rights.
 assets/egirl-source-reference.wav
 
-# uv is used as a test runner; Python runtime dependencies are declared in requirements files.
-uv.lock
+# The runtime lock (packaging/runtime/uv.lock) is tracked; a root uv.lock from ad-hoc test runs is not.
+/uv.lock
 dist/
 *.egg-info/
 

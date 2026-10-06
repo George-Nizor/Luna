@@ -1,3 +1,15 @@
+# Test and lint tools. The tests use Luna's fake engine, so on a machine without the GPU stack
+# these plus the backend's web dependencies are enough:
+#   uv pip install -r requirements-dev.txt
+# scripts/setup_dev.ps1 adds them to the full locked runtime instead.
 pytest>=8,<9
 httpx>=0.27,<1
 ruff>=0.6,<1
+packaging>=24
+fastapi==0.141.1
+uvicorn==0.52.3
+pydantic==2.13.4
+python-multipart==0.0.32
+soundfile==0.14.0
+numpy==2.5.2
+psutil==7.2.2

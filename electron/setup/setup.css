@@ -1,0 +1,48 @@
+/* The first-run runtime setup screen. Built from Luna's brand v2 tokens and objects in
+   app/static/styles.css: one opaque extruded panel on the page ground, the lunar accent for progress. */
+
+[hidden] { display: none !important; }
+
+.setup-version { color: var(--muted); font-size: 13px; }
+
+.setup { display: grid; min-height: calc(100svh - 76px); place-items: center; padding: 32px clamp(16px, 4vw, 64px) 48px; }
+.setup-panel { width: min(680px, 100%); padding: 28px 30px 26px; border: var(--obj-border); border-radius: var(--r-lg); background: var(--panel); box-shadow: var(--obj-shadow); }
+.setup-panel h1 { margin: 0 0 10px; font: 650 28px/1.15 var(--display); --fvs: var(--display-vs), "opsz" 36; letter-spacing: -.01em; }
+.setup-lead { margin: 0 0 20px; color: var(--text-2); font-size: 15px; }
+
+.setup-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin: 0 0 18px; padding: 16px 18px; border: 2px solid var(--line); border-radius: var(--r-md); background: var(--well); }
+.setup-facts div { min-width: 0; }
+.setup-facts dt { color: var(--muted); font-size: 12px; font-weight: 600; }
+.setup-facts dd { margin: 2px 0 0; overflow-wrap: anywhere; font-size: 14px; }
+.setup-facts dd.mono { font-size: 13px; }
+.setup-facts .gpu-missing { color: var(--warn); font-weight: 650; }
+
+.setup-note { margin: 0 0 18px; padding: 12px 14px; border: 2px solid var(--warn); border-radius: var(--r-md); color: var(--text); background: color-mix(in srgb, var(--warn) 10%, var(--panel)); font-size: 14px; }
+
+.setup-steps { display: grid; gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+.setup-steps li { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 14px; }
+.step-dot { width: 14px; height: 14px; flex: 0 0 auto; border: 2px solid var(--line); border-radius: 50%; background: var(--panel); }
+.setup-steps li.active { color: var(--text); font-weight: 650; }
+.setup-steps li.active .step-dot { border-color: var(--accent-ink); background: var(--accent); animation: step-pulse 1.1s ease-in-out infinite; }
+.setup-steps li.done { color: var(--text-2); }
+.setup-steps li.done .step-dot { border-color: var(--accent-deep); background: var(--accent-deep); }
+@keyframes step-pulse { 50% { transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .setup-steps li.active .step-dot { animation: none; } }
+
+.setup-meter { margin: 0 0 18px; }
+.meter-track { height: 18px; overflow: hidden; border: var(--obj-border); border-radius: 999px; background: var(--well); }
+.meter-track span { display: block; width: 0; height: 100%; background: var(--accent); transition: width .25s ease; }
+.meter-track.indeterminate span { width: 30%; animation: meter-scan 1.3s ease-in-out infinite; }
+@keyframes meter-scan { from { transform: translateX(-110%); } to { transform: translateX(340%); } }
+.meter-line { display: flex; justify-content: space-between; gap: 12px; margin-top: 8px; color: var(--text-2); font-size: 13px; }
+.meter-detail { min-height: 1.4em; margin-top: 4px; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+
+.setup-error { max-height: 220px; margin: 0 0 18px; padding: 12px 14px; overflow: auto; border: 2px solid var(--danger); border-radius: var(--r-md); color: var(--text); background: color-mix(in srgb, var(--danger) 8%, var(--panel)); font: 12px/1.5 var(--mono); white-space: pre-wrap; }
+
+.setup-actions { display: flex; justify-content: flex-end; gap: 12px; }
+.setup-foot { margin: 20px 0 0; color: var(--muted); font-size: 12.5px; }
+
+@media (max-width: 560px) {
+  .setup-panel { padding: 20px 18px; }
+  .setup-facts { grid-template-columns: 1fr; }
+}

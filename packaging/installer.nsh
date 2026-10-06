@@ -24,4 +24,24 @@ Var LunaUserData
   ${EndIf}
 !macroend
 
+; From 0.6.0 Luna installs its Python runtime under %LOCALAPPDATA%\Luna\runtime on first start.
+; The old uninstaller removes the whole previous installation, bundled resources\python (~4.9 GB)
+; included. Should anything of it survive (an interrupted removal), it is deleted here, so no
+; second copy of the runtime is left in the program folder. User data is never touched.
+!macro customInstall
+  ${If} ${FileExists} "$INSTDIR\resources\python\*.*"
+    RMDir /r "$INSTDIR\resources\python"
+  ${EndIf}
+!macroend
+
+!endif
+
+!ifdef BUILD_UNINSTALLER
+; Uninstalling (not updating) also removes the Python runtime Luna set up for itself. It holds no user
+; data; %APPDATA%\luna (settings, voices, history) and generated audio are kept as before.
+!macro customUnInstall
+  ${ifNot} ${isUpdated}
+    RMDir /r "$LOCALAPPDATA\Luna\runtime"
+  ${endIf}
+!macroend
 !endif

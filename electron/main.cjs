@@ -1,12 +1,13 @@
 "use strict";
 
-const { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, nativeTheme, net: electronNet, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
 const path = require("node:path");
 const { resolveOutputFile } = require("./output-files.cjs");
+const { RuntimeManager, SetupCancelled, detectNvidiaGpu } = require("./runtime-setup.cjs");
 
 const APP_ID = "com.instrumenta.luna";
 const START_PORT = 7865;
@@ -20,6 +21,9 @@ let backendToken = null;
 let backendStopping = false;
 let quitting = false;
 let shutdownComplete = false;
+let runtimeManager = null;
+let runtimeEnvironment = null;
+let setupSession = null;
 
 // Explicit data root supports portable runs and isolated packaged-runtime tests.
 if (process.env.LUNA_USER_DATA_DIRECTORY) {
@@ -34,6 +38,35 @@ function projectRoot() {
   return path.resolve(__dirname, "..");
 }
 
+// The installed app sets up its own Python runtime (runtime-setup.cjs). A source checkout uses its
+// .venv unless LUNA_MANAGED_RUNTIME=1 asks for the installed behaviour (with LUNA_UV naming uv).
+function usesManagedRuntime() {
+  return app.isPackaged || process.env.LUNA_MANAGED_RUNTIME === "1";
+}
+
+function runtimeRoot() {
+  if (process.env.LUNA_RUNTIME_ROOT) {
+    if (!path.isAbsolute(process.env.LUNA_RUNTIME_ROOT)) throw new Error("LUNA_RUNTIME_ROOT must be an absolute path.");
+    return process.env.LUNA_RUNTIME_ROOT;
+  }
+  const local = process.env.LOCALAPPDATA || path.join(app.getPath("home"), "AppData", "Local");
+  return path.join(local, "Luna", "runtime");
+}
+
+function getRuntimeManager() {
+  if (!runtimeManager) {
+    const resources = app.isPackaged ? path.join(process.resourcesPath, "runtime") : path.join(projectRoot(), "packaging", "runtime");
+    runtimeManager = new RuntimeManager({
+      resources,
+      uv: app.isPackaged ? path.join(resources, "uv", "uv.exe") : (process.env.LUNA_UV || "uv"),
+      root: runtimeRoot(),
+      backendRoot: app.isPackaged ? path.join(process.resourcesPath, "backend") : projectRoot(),
+      fetch: (url, options) => electronNet.fetch(url, options),
+    });
+  }
+  return runtimeManager;
+}
+
 function runtimePaths() {
   const userRoot = app.getPath("userData");
   const packaged = app.isPackaged;
@@ -45,8 +78,8 @@ function runtimePaths() {
   };
   return {
     backendRoot: packaged ? path.join(process.resourcesPath, "backend") : projectRoot(),
-    python: packaged
-      ? path.join(process.resourcesPath, "python", "python.exe")
+    python: runtimeEnvironment
+      ? runtimeEnvironment.python
       : path.join(projectRoot(), ".venv", "Scripts", "python.exe"),
     data: path.join(userRoot, "data"),
     runtime: path.join(userRoot, "runtime"),
@@ -162,8 +195,13 @@ async function startBackend() {
   backendPort = await findAvailablePort();
   const logPath = path.join(paths.logs, "desktop-backend.log");
   const log = fs.openSync(logPath, "a");
+  const inherited = { ...process.env };
+  // The runtime is self-contained: no Python configuration from the user's own environment applies.
+  for (const key of Object.keys(inherited)) {
+    if (/^(PYTHONPATH|PYTHONHOME|PYTHONSTARTUP|VIRTUAL_ENV|CONDA_PREFIX)$/i.test(key)) delete inherited[key];
+  }
   const env = {
-    ...process.env,
+    ...inherited,
     HOST: "127.0.0.1",
     PORT: String(backendPort),
     APP_IDLE_SHUTDOWN_SECONDS: "0",
@@ -277,7 +315,67 @@ function createWindow() {
   });
   mainWindow.once("ready-to-show", () => mainWindow.show());
   mainWindow.on("closed", () => { mainWindow = null; });
-  mainWindow.loadURL(`http://127.0.0.1:${backendPort}/`);
+}
+
+function loadStudio() {
+  return mainWindow.loadURL(`http://127.0.0.1:${backendPort}/`);
+}
+
+// Shows the setup screen in the main window until the runtime for this version's lock is ready.
+// Resolves with that runtime; rejects with SetupCancelled when the person quits instead.
+function runSetupScreen(manager) {
+  return new Promise((resolve, reject) => {
+    let gpu = null;
+    let finished = null;
+    const forward = (update) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("setup:progress", update);
+    };
+    manager.on("progress", forward);
+    setupSession = {
+      state: async () => {
+        gpu = gpu || await detectNvidiaGpu();
+        return { version: app.getVersion(), summary: manager.summary(), gpu };
+      },
+      start: async () => {
+        try {
+          finished = await manager.run();
+          return { ok: true, result: { verification: finished.verification } };
+        } catch (error) {
+          if (error instanceof SetupCancelled) return { ok: false, cancelled: true };
+          const logPath = path.join(app.getPath("userData"), "logs", "runtime-setup.log");
+          try {
+            fs.mkdirSync(path.dirname(logPath), { recursive: true });
+            fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${error.stack || error}\n`);
+          } catch (_) { /* logging is best effort */ }
+          return { ok: false, code: error.code || "", error: String(error.message || error) };
+        }
+      },
+      cancel: () => { manager.cancel(); return true; },
+      proceed: () => {
+        if (!finished) return false;
+        manager.off("progress", forward);
+        setupSession = null;
+        resolve(manager.ready());
+        return true;
+      },
+      quit: () => {
+        manager.cancel();
+        manager.off("progress", forward);
+        setupSession = null;
+        reject(new SetupCancelled());
+        return true;
+      },
+    };
+    mainWindow.loadFile(path.join(__dirname, "setup", "index.html"));
+  });
+}
+
+function registerSetupIpc() {
+  const call = (name) => (event, ...args) => {
+    if (!setupSession || !mainWindow || event.sender !== mainWindow.webContents) throw new Error("Runtime setup is not running.");
+    return setupSession[name](...args);
+  };
+  for (const name of ["state", "start", "cancel", "proceed", "quit"]) ipcMain.handle(`setup:${name}`, call(name));
 }
 
 async function restartBackend() {
@@ -326,7 +424,11 @@ function registerIpc() {
     await restartBackend();
     return { changed: true, path: selected };
   });
-  ipcMain.handle("studio:get-runtime-info", () => ({ packaged: app.isPackaged, version: app.getVersion() }));
+  ipcMain.handle("studio:get-runtime-info", () => ({
+    packaged: app.isPackaged,
+    version: app.getVersion(),
+    runtime: runtimeEnvironment ? { lockHash: runtimeEnvironment.lockHash, cuda: Boolean(runtimeEnvironment.verification?.cuda) } : null,
+  }));
   ipcMain.handle("studio:shutdown", () => {
     setImmediate(() => app.quit());
     return true;
@@ -348,9 +450,21 @@ if (!singleInstance) {
   app.whenReady().then(async () => {
     try {
       registerIpc();
-      await startBackend();
+      registerSetupIpc();
       createWindow();
+      if (usesManagedRuntime()) {
+        const manager = getRuntimeManager();
+        runtimeEnvironment = manager.ready() || await runSetupScreen(manager);
+      }
+      await startBackend();
+      await loadStudio();
     } catch (error) {
+      if (error instanceof SetupCancelled || quitting) {
+        quitting = true;
+        shutdownComplete = true;
+        app.quit();
+        return;
+      }
       dialog.showErrorBox("Luna could not start", error.stack || error.message || String(error));
       quitting = true;
       await stopBackend();
@@ -362,6 +476,7 @@ if (!singleInstance) {
 
 app.on("window-all-closed", () => app.quit());
 app.on("before-quit", (event) => {
+  if (runtimeManager) runtimeManager.cancel();
   if (shutdownComplete) return;
   event.preventDefault();
   if (quitting) return;
