@@ -24,4 +24,4 @@ testpaths = ["tests"]
 include = ["app", "app.*"]
 
 [tool.setuptools.package-data]
-app = ["static/*", "templates/*", "voice_packs.json"]
+app = ["static/*", "static/brand/*", "static/brand/fonts/*", "templates/*", "voice_packs.json"]
