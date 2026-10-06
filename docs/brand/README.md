@@ -1,6 +1,6 @@
 # Brand v2 in Luna
 
-Aligned 2026-10-06 against Instrumenta `brand/` at commit `87f846b` (`brand/ALIGNMENT.md`). Luna was
+Aligned 2026-10-06 against Instrumenta `brand/` at commit `d3f9c64` (`brand/ALIGNMENT.md`). Luna was
 the last product in the suite to be aligned, and the largest visual change: its deliberate 1-bit,
 black-and-white terminal look is replaced entirely. That look (icon and stylesheet) stays archived in
 Instrumenta's `brand/archive/v1/luna/` in case it is ever wanted back.
