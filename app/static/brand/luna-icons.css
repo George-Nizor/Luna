@@ -1,0 +1,45 @@
+/* Luna interface icons: layout and the few motion moments. Pairs with luna-icons.js, which draws with
+   presentation attributes only; every animation here keys off an m-* class it leaves behind.
+
+   Triggers (put the class on the icon or any ancestor):
+     .is-working   the one loop: the voice bars pulse, only while speech is really being generated
+     .is-playing   a one-shot: tick pop, bin lid, failed shake
+   Hover or focus of a button or link holding the icon gives the brand hop; the gear turns a little
+   and the bin lifts its lid. All of it stops under prefers-reduced-motion. */
+
+.li { flex: none; overflow: visible; vertical-align: middle; }
+.li .li-body, .li [class^="m-"], .li [class*=" m-"] { transform-box: fill-box; }
+.li .li-body { transform-origin: 50% 90%; }
+.li .m-bar { transform-origin: 50% 50%; }
+.li .m-lid { transform-origin: 50% 100%; }
+.li .m-turn, .li .m-tick, .li .m-shake, .li .m-reel { transform-origin: 50% 50%; }
+
+:is(a, button, summary):is(:hover, :focus-visible) > .li:not(.li-line) .li-body { animation: li-hop .55s ease; }
+@keyframes li-hop { 40% { transform: translateY(-2.5px) rotate(-3deg); } }
+
+:is(a, button):is(:hover, :focus-visible) > .li .m-turn { animation: li-turn .7s ease; }
+@keyframes li-turn { to { transform: rotate(60deg); } }
+
+:is(a, button):is(:hover, :focus-visible) > .li .m-lid,
+.is-playing .li .m-lid, .li.is-playing .m-lid { animation: li-lid .7s ease; }
+@keyframes li-lid { 35%, 60% { transform: translateY(-4px) rotate(-6deg); } }
+
+.is-working .li .m-bar, .li.is-working .m-bar { animation: li-bar .9s ease-in-out infinite; }
+.is-working .li .d1, .li.is-working .d1 { animation-delay: .15s; }
+.is-working .li .d2, .li.is-working .d2 { animation-delay: .3s; }
+@keyframes li-bar { 0%, 100% { transform: scaleY(.55); } 50% { transform: scaleY(1.08); } }
+
+.is-playing .li .m-tick, .li.is-playing .m-tick { animation: li-tick .6s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes li-tick { 0% { transform: scale(.4) rotate(-14deg); } }
+
+.is-playing .li .m-shake, .li.is-playing .m-shake { animation: li-shake .45s ease; }
+@keyframes li-shake {
+  20% { transform: translateX(-2px) rotate(-4deg); }
+  40% { transform: translateX(2px) rotate(4deg); }
+  60% { transform: translateX(-1.5px) rotate(-2deg); }
+  80% { transform: translateX(1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .li .li-body, .li [class^="m-"], .li [class*=" m-"] { animation: none !important; }
+}
