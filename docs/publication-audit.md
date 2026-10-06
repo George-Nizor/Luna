@@ -9,7 +9,9 @@ The release assets contain:
 
 - Luna's own code (MIT): the Electron app, the backend in `resources\backend`, the runtime lock and
   the scripts that install and check it;
-- Electron 43.4.0 with Chromium (`LICENSE.electron.txt`, `LICENSES.chromium.html` in the install);
+- Electron 43.4.0 with Chromium (`LICENSE.electron.txt`, `LICENSES.chromium.html` in the install).
+  Its LGPL `ffmpeg.dll` is covered by `Electron-media-sources.zip`, attached to the release unchanged
+  from 0.4.1 (same Electron and FFmpeg revision);
 - uv 0.12.23 (`uv.exe`, MIT OR Apache-2.0, both licence texts in `resources\runtime\uv`), unmodified
   and checked against the SHA-256 of uv's GitHub release;
 - three pure-Python wheels built from their PyPI source archives without modification: fairseq 0.12.2

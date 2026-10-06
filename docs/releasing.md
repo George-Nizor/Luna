@@ -17,7 +17,10 @@ Since 0.6.0 the installer carries no Python runtime. A release is:
 - `Luna-Installer-<version>.exe`, the NSIS web installer (under 1 MB);
 - `luna-<version>-x64.nsis.7z`, the app package (about 110 MB): Electron, the backend source, the
   runtime lock, three bundled wheels, `apply_patches.py`, `verify_runtime.py` and `uv.exe`;
-- `instrumenta-release.json`, `SHA256SUMS.txt`, `LICENSE` and `THIRD_PARTY_NOTICES.md`.
+- `instrumenta-release.json`, `SHA256SUMS.txt`, `LICENSE` and `THIRD_PARTY_NOTICES.md`;
+- `Electron-media-sources.zip`, the LGPL source supplement for Electron's `ffmpeg.dll`. It depends
+  only on the Electron version; rebuild it (its `source-provenance.json` lists every URL and hash)
+  when Electron changes.
 
 Run alone, the installer uses the package beside it or downloads it from the same release
 (`nsisWeb.appPackageUrl`). Instrumenta downloads both, verifies them and runs the installer.

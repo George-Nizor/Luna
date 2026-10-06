@@ -4,7 +4,10 @@ Luna application code is MIT ([LICENSE](LICENSE)). The installer also carries th
 under its own licence:
 
 - **Electron 43.4.0 and Chromium.** MIT for Electron; Chromium's notices are installed beside
-  `Luna.exe` as `LICENSE.electron.txt` and `LICENSES.chromium.html`.
+  `Luna.exe` as `LICENSE.electron.txt` and `LICENSES.chromium.html`. Chromium's media library,
+  `ffmpeg.dll`, is LGPL-2.1 and replaceable with a compatible build; its exact source (FFmpeg revision
+  ad41607c, with the Electron 43.4.0 source, Chromium build scripts and DEPS) is attached to the
+  release as `Electron-media-sources.zip`, the same supplement 0.4.1 carried for this Electron.
 - **uv 0.12.23** by Astral Software Inc., unmodified, MIT OR Apache-2.0. Both licence texts are in
   `resources\runtime\uv`. Notices for the Rust crates compiled into uv are in its source:
   https://github.com/astral-sh/uv/tree/0.12.23
