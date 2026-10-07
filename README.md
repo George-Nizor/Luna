@@ -8,80 +8,88 @@ Private, local GPU voice generation.
 
 ![Luna in the dark theme: the voice visualiser, the text composer and the voice controls](docs/images/luna-studio-dark.png)
 
-Luna is a Windows desktop app for local GPU speech generation, launched from Instrumenta, the Start
-menu, or `Luna.exe`. It opens a private backend in an Electron window. Text, reference recordings,
-profiles, and generated WAV files remain on your computer.
+Luna is a Windows desktop app that turns text into speech with voice models running on your own
+NVIDIA GPU. It runs a loopback backend inside an Electron window. Text, reference recordings, voice
+profiles and generated WAV files stay on your computer.
 
-The installer is small (about 110 MB) and holds no Python. On first start Luna sets up its own
-runtime: Python 3.12 and the locked libraries it speaks with, PyTorch with CUDA 12.8 among them.
-That is a 3.02 GB download, once, which takes about 5 GB under `%LOCALAPPDATA%\Luna\runtime`. The
-setup screen shows the size, progress and speed; cancelling or a lost connection keeps what has
-arrived, and the next start resumes. Updates to Luna reuse the runtime unless its locked dependency
-set changes, in which case Luna sets up the new one and removes the old one after it works.
+Current version: **0.6.0**.
 
-Current source version: **0.6.0**.
+## Requirements
 
-## Choose voices and models
+Luna needs Windows x64 and an NVIDIA GPU with driver 570 or newer (for CUDA 12.8). Larger models need
+more GPU memory. Without a reachable GPU, setup still completes and says so, but generation reports
+the error and produces no audio. Plan for about 5 GB for the runtime plus 2.5 to 4.5 GB per voice pack.
 
-Open **Voices** in the top bar (or **Get / manage voices** in Settings). Choose which speakers appear in your voice menu, then download the
-quality packs you want. The catalog displays exact download sizes, available disk space, official
-sources, installation status, and progress. Downloads can be paused and resumed. Every file is
-checked against a pinned revision and checksum before the pack becomes available.
+## Install and first start
+
+Install Luna from Instrumenta, or run `Luna-Installer-<version>.exe` from a
+[GitHub release](https://github.com/George-Nizor/Luna/releases). The installer is under 1 MB and
+fetches the app package (about 110 MB), which holds no Python. Launch Luna from Instrumenta, the
+Start menu or `Luna.exe`.
+
+On first start Luna sets up its own runtime: Python 3.12 and its locked libraries, PyTorch with CUDA
+12.8 among them. That is a 3.02 GB download, once. The setup screen
+shows size, progress and speed. A cancelled or interrupted setup resumes on the next start. Updates
+reuse the runtime unless its locked dependency set changes.
+
+## Voices
+
+Open **Voices** in the top bar (or **Get / manage voices** in Settings) to choose which speakers
+appear in the voice menu and to download packs. The library shows exact sizes, free disk space,
+sources and progress. Downloads pause and resume, and every file is checked against a pinned
+revision and checksum before the pack is usable. Luna never downloads a model implicitly; a new
+installation opens the library when no selected voice is ready.
 
 ![The voice library in the light theme, with nine Qwen speakers ready and the shared packs below](docs/images/luna-voice-library-light.png)
 
-- **Official Qwen speakers:** Ryan, Aiden, Vivian, Serena, Uncle Fu, Dylan, Eric, Ono Anna, and Sohee.
-  Fast uses the 0.6B CustomVoice model; High uses the separate 1.7B CustomVoice model.
-- **Shared voice packs:** Fast is approximately 2.50 GB and High approximately 4.52 GB. Each includes
-  all nine speakers. Selecting one speaker does not require another copy of the shared weights.
-- **Saved voice profiles:** Upload a recording you own or have permission to use, and its exact
-  transcript. Separate optional Base packs provide Fast and High voice cloning.
-- **David Attenborough:** Existing offline installations can retain this XTTS fine-tune. It contains
-  one checkpoint, labeled **Original**. A quality switch cannot create a higher-quality checkpoint.
-- **E-Girl:** Existing offline installations can retain RVC conversion. When the matching official
-  voice pack is present, Luna uses its Serena speaker as the clean source. Otherwise it uses the
-  existing reference-cloning source. RVC conversion can affect clarity.
+- **Qwen speakers:** Ryan, Aiden, Vivian, Serena, Uncle Fu, Dylan, Eric, Ono Anna and Sohee. Fast
+  uses the 0.6B CustomVoice pack (about 2.50 GB), High the 1.7B pack (about 4.52 GB). Each pack holds
+  all nine speakers.
+- **Voice profiles:** clone a voice from a WAV or FLAC recording you own or have permission to use,
+  plus its exact transcript. This needs one of the separate Base packs (Fast about 2.52 GB, High
+  about 4.54 GB).
+- **David Attenborough (XTTS) and E-Girl (RVC):** legacy voices. Installations that already had them
+  keep them; the voice library does not offer them to new installations. David has one quality,
+  labelled **Original**. E-Girl converts the Serena speaker when the CustomVoice pack for the chosen
+  quality is installed, otherwise the matching Base pack, and RVC conversion can reduce clarity.
 
-High mode on official Qwen speakers supports optional style directions. Fast does not support that
-control. An optional seed is saved with every generation so you can compare settings. Qwen-based voices also expose sampling temperature (0.2–1.2; default 0.7). Lower values are steadier; higher values add variation.
+High quality on Qwen speakers accepts an optional style direction. Qwen-based voices have a sampling
+temperature from 0.2 to 1.2 (default 0.7). Every generation saves its seed, chosen or random, so you
+can compare settings. Use **Unload** in Settings when another application needs the GPU.
 
-New installations open the voice library when no selected voice is ready. Model loading never starts
-an implicit download. An NVIDIA GPU with a current driver (570 or newer, for CUDA 12.8) is required;
-larger models need more GPU memory. Without one, setup still completes and says so, and generation
-reports that no GPU is reachable. Use **Unload** when another application needs the GPU.
+## Text and generation
 
-## Text limits
+Luna speaks English, Chinese, Japanese, Korean, German, French, Russian, Portuguese, Spanish and
+Italian, or detects the language with Auto. The text box enforces the backend limit of 5,000
+characters. Long text is generated in segments and
+joined into one WAV. Qwen segments are at most 140 characters on Fast and 100 on High, fewer if the
+audio-token budget requires it. A model that runs out of audio budget returns an error instead of
+saving partial speech. Generation times out after one hour by default. Limits are set by environment
+variables (see [`.env.example`](.env.example)).
 
-The text box displays and enforces the backend's character limit (5,000 by default). Model and
-language determine safe segment sizes; Qwen's configured audio-token budget is also accounted for.
-Qwen currently uses up to 140 characters per Fast segment and 100 per High segment, further reduced when its audio budget requires it. Long text is generated in bounded segments and joined into one WAV. A model exhausting its audio
-budget returns an error rather than saving partial speech as a successful generation.
+**Sound history** keeps every generation until you delete it. You can search by text or voice,
+filter by quality, play, export the WAV or metadata, show the file in Explorer and delete it. **Reuse
+text** puts the original text, voice, language, quality, style, temperature and seed back in the
+editor without generating. Outputs from older versions that did not save their text cannot be
+reused. Details are in [Voice catalog and generation library](docs/voice-library.md).
 
-Generation has a one-hour default timeout to accommodate longer High-quality jobs. Administrators
-can adjust the limits in the environment configuration.
+## Where data lives
 
-## Generation library and exports
+| What | Where |
+| --- | --- |
+| Generated audio (default, changeable in Settings) | `%USERPROFILE%\Documents\Luna` |
+| Settings, profiles, history state, logs | `%APPDATA%\Luna` |
+| Downloaded voice packs | `%APPDATA%\Luna\data\model-packs` |
+| Preserved legacy voices | `%APPDATA%\Luna\data\legacy` |
+| Python runtime | `%LOCALAPPDATA%\Luna\runtime` |
 
-**Sound history** keeps every generation until you delete it. Search the text or voice, filter by quality,
-and page through all results. Each entry includes playback, WAV export, metadata export, Explorer
-reveal in the desktop app, and deletion.
+Backend logs are in `%APPDATA%\Luna\logs\desktop-backend.log` and runtime setup failures in
+`runtime-setup.log` beside it. Uninstalling removes the app and the Python runtime, and keeps your
+settings, packs and generated audio. See [Identity and local data](docs/identity-and-data.md).
 
-**Reuse text** restores the original text, voice, language, quality, style, and seed to the editor.
-Change any parameters, then generate a new output. This preserves the original generation.
+## Development
 
-Details record model provenance, seed, duration, generation time, sample rate, file size, character
-count, and segment count. Older outputs remain readable. Versions that did not save their text cannot
-supply it for reuse. Audio already deleted by an older retention policy cannot be recovered by Luna.
-
-The default output location is `%USERPROFILE%\Documents\Luna`. Settings can change it. Previous
-selected output folders remain in the library. Exporting a WAV creates a separate copy; deleting the
-generation removes its managed WAV and metadata.
-
-Settings and downloaded packs live under `%APPDATA%\Luna`; packs are in `data\model-packs`.
-Backend logs are in `logs\desktop-backend.log`, runtime setup failures in `logs\runtime-setup.log`.
-The Python runtime lives under `%LOCALAPPDATA%\Luna\runtime`. Uninstalling preserves your data.
-
-## Development and packaging
+Development uses Windows PowerShell, [uv](https://docs.astral.sh/uv/) and Node.js.
 
 ```powershell
 .\scripts\setup_dev.ps1
@@ -91,44 +99,40 @@ npm run pack
 npm run dist
 ```
 
-`scripts\setup_dev.ps1` builds `.venv` from the same lock the installed app uses
-(`packaging/runtime`), with uv. Installers contain the app, the backend source, the runtime lock and a
-pinned `uv.exe`; no Python, no CUDA libraries and no voice weights. How the runtime is locked, set
-up and released is in [Release assembly](docs/releasing.md).
+`setup_dev.ps1` builds `.venv` with uv from the same lock the installed app uses
+(`packaging/runtime`), adds the test tools and runs `npm install`. `npm test` runs pytest, Ruff and
+the Electron checks. `npm run pack` builds `release\win-unpacked`; `npm run dist` builds the
+installer and release assets. The Python tests also run on Linux with `python -m pytest -q` after
+`uv pip install -r requirements-dev.txt`.
 
-The verified developer downloader uses the same catalog:
+`scripts\download_models.ps1 -Model <pack>` downloads a verified pack into the development checkout,
+with `qwen-voices-fast`, `qwen-voices-high`, `qwen-clone-fast` or `qwen-clone-high`. Runtime locking,
+release assembly and Instrumenta packaging are in [Release assembly](docs/releasing.md).
 
-```powershell
-.\scripts\download_models.ps1 -Model qwen-voices-fast
-.\scripts\download_models.ps1 -Model qwen-voices-high
-.\scripts\download_models.ps1 -Model qwen-clone-fast
-.\scripts\download_models.ps1 -Model qwen-clone-high
-```
+## Documentation
 
-The old `qwen-fast` and `qwen-best` command names remain aliases for cloning packs.
-Models, reference recordings, runtime payloads, logs, QA audio, and builds are excluded from Git.
-
-## Documentation and sources
-
-- [Model catalog and generation library](docs/voice-library.md)
+- [Voice catalog and generation library](docs/voice-library.md)
 - [Identity and local data](docs/identity-and-data.md)
 - [Release assembly](docs/releasing.md)
 - [Publication audit](docs/publication-audit.md)
 - [Brand v2 in Luna](docs/brand/README.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
-- [Official Qwen Fast voices](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice)
-- [Official Qwen High voices](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice)
-- [David XTTS source](https://huggingface.co/drewThomasson/xtts_David_Attenborough_fine_tune)
-- [E-Girl RVC source](https://voice-models.com/model/1uZvOaYhqJv)
 
-Source improvements do not publish or replace an installed release. Luna no longer redistributes a
-Python runtime; legacy recordings and weights are still not redistributed (see the publication audit).
+Model sources: [Qwen Fast voices](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice),
+[Qwen High voices](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice),
+[David XTTS](https://huggingface.co/drewThomasson/xtts_David_Attenborough_fine_tune),
+[E-Girl RVC](https://voice-models.com/model/1uZvOaYhqJv). Releases contain no voice weights or
+recordings.
+
+Licence: MIT ([LICENSE](LICENSE)). Bundled components keep their own licences
+([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
 
 ## Family
 
-Luna is part of [Instrumenta](https://github.com/George-Nizor/Instrumenta), made by Bonehead Labs, and
-follows the Instrumenta brand v2: a crescent moon with a voice, drawn as a freestanding object, in a
-deliberately quiet lunar blue. The interface type (Fraunces, Commissioner, Spline Sans Mono) is SIL
-OFL 1.1, vendored in `app/static/brand/fonts` with its licences. Licence: MIT ([LICENSE](LICENSE));
-bundled components keep their own ([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).
-See [docs/brand/README.md](docs/brand/README.md) for what was taken from the brand and what was kept.
+Luna is part of [Instrumenta](https://github.com/George-Nizor/Instrumenta), a suite of local learning
+and creative apps made by [Bonehead Labs](https://boneheadlabs.org)
+([GitHub](https://github.com/Bonehead-Labs)). It follows the Instrumenta brand v2: a crescent moon
+with a voice, drawn as a freestanding object, in a quiet lunar blue. The interface type (Fraunces,
+Commissioner, Spline Sans Mono) is SIL OFL 1.1, vendored in `app/static/brand/fonts` with its
+licences. [Brand v2 in Luna](docs/brand/README.md) describes what was taken from the brand and what
+was kept.
